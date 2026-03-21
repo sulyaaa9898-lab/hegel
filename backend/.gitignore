@@ -1,0 +1,13 @@
+node_modules/
+.env
+.env.local
+.DS_Store
+*.log
+*.db
+cyber_stack.db
+*.sqlite
+.vscode/
+.idea/
+*.swp
+*.swo
+*~

@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Панель Владельца</title>
+  <link rel="stylesheet" href="/static/saas.css">
+</head>
+<body>
+  <div class="shell">
+    <div class="topbar">
+      <div>
+        <div class="brand">CYBER STACK OWNER</div>
+        <div class="status" id="ownerStatus">Войдите как SUPER_ADMIN</div>
+      </div>
+      <div class="row">
+        <button class="btn-soft" id="refreshBtn" type="button">Обновить</button>
+        <button class="btn-bad" id="logoutBtn" type="button">Выйти</button>
+      </div>
+    </div>
+
+    <!-- AUTH VIEW -->
+    <div class="grid" id="authView">
+      <section class="card">
+        <h1>Вход Владельца</h1>
+        <div class="split-2">
+          <input id="login" type="text" placeholder="Логин">
+          <input id="password" type="password" placeholder="Пароль">
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <button class="btn-main" id="loginBtn" type="button">Войти</button>
+        </div>
+        <div class="note">Эта панель использует backend API текущего окружения.</div>
+      </section>
+    </div>
+
+    <!-- OWNER VIEW -->
+    <div class="owner-grid hidden" id="ownerView">
+
+      <!-- LEFT: создание + список клубов -->
+      <div>
+        <section class="card">
+          <h2>Клубы</h2>
+
+          <div class="field-group">
+            <label class="field-label">Название клуба</label>
+            <input id="clubName" type="text" placeholder="Atom, EuroClub, Apex...">
+          </div>
+          <div class="field-group">
+            <label class="field-label">Тип клуба</label>
+            <input id="clubType" type="text" placeholder="Кибер-клуб, Lounge, PS-зал...">
+          </div>
+          <div class="field-group">
+            <label class="field-label">URL slug</label>
+            <input id="clubSlug" type="text" placeholder="atom, euro-club...">
+          </div>
+          <div class="field-group">
+            <label class="field-label">Подписка при создании</label>
+            <select id="clubSubscriptionType">
+              <option value="trial">trial</option>
+              <option value="monthly">monthly</option>
+            </select>
+          </div>
+          <div class="field-group" id="trialDaysWrap">
+            <label class="field-label">Дней trial</label>
+            <input id="clubTrialDays" type="number" min="1" max="365" value="7" placeholder="7">
+          </div>
+          <div class="row" style="margin-bottom:14px;">
+            <button class="btn-main" id="createClubBtn" type="button">+ Создать клуб</button>
+          </div>
+
+          <div class="list" id="clubsList"></div>
+        </section>
+      </div>
+
+      <!-- RIGHT: конфигуратор -->
+      <div>
+        <section class="card" style="max-height:90vh;overflow-y:auto;">
+
+          <div class="club-header">
+            <div>
+              <h2 id="selectedTitle">Конфигурация Клуба</h2>
+              <div class="status" id="selectedHint">Выберите клуб слева, чтобы настроить его.</div>
+            </div>
+          </div>
+
+          <div id="configBlock" class="hidden">
+
+            <!-- Управление клубом -->
+            <div class="row" style="flex-wrap:wrap;margin-bottom:14px;">
+              <button class="btn-ok" id="enableBtn" type="button">Включить</button>
+              <button class="btn-bad" id="disableBtn" type="button">Отключить</button>
+              <button class="btn-bad" id="deleteClubBtn" type="button">Удалить клуб</button>
+              <select id="subSelect" style="max-width:170px;">
+                <option value="trial">trial</option>
+                <option value="monthly">monthly</option>
+                <option value="expired">expired</option>
+              </select>
+              <input id="renewTrialDays" type="number" min="1" max="365" value="7" placeholder="trial days" style="max-width:120px;">
+              <button class="btn-warn" id="updateSubBtn" type="button">Продлить подписку</button>
+            </div>
+
+            <!-- ███ ПК ███ -->
+            <div class="config-section">
+              <h3>🖥 ПК</h3>
+              <div class="config-count-row">
+                <div class="field-group" style="max-width:260px;">
+                  <label class="field-label">Режим количества ПК</label>
+                  <select id="pcCountMode">
+                    <option value="SET_COUNT">Задать количество</option>
+                    <option value="SKIP">Не указывать количество</option>
+                  </select>
+                </div>
+                <div class="field-group" style="max-width:220px;">
+                  <label class="field-label">Количество ПК</label>
+                  <input id="pcCount" type="number" min="0" placeholder="0">
+                </div>
+              </div>
+              <div class="note">Тарифы для ПК не нужны. Backend создаёт ровно столько ПК, сколько задано — забронировать лишний невозможно.</div>
+            </div>
+
+            <!-- ███ PS ███ -->
+            <div class="config-section">
+              <h3>🎮 PS Консоли</h3>
+              <div class="config-count-row">
+                <div class="field-group" style="max-width:260px;">
+                  <label class="field-label">Режим количества PS</label>
+                  <select id="psCountMode">
+                    <option value="SET_COUNT">Задать количество</option>
+                    <option value="SKIP">Не указывать количество</option>
+                  </select>
+                </div>
+                <div class="field-group" style="max-width:220px;">
+                  <label class="field-label">Количество PS</label>
+                  <input id="psCount" type="number" min="0" placeholder="0">
+                </div>
+              </div>
+
+              <h4 style="margin:14px 0 8px;">Тарифные группы</h4>
+              <div id="groupsContainer"></div>
+              <button class="btn-soft" id="addGroupBtn" type="button" style="margin-top:4px;">+ Добавить группу</button>
+
+              <h4 style="margin:16px 0 6px;">Привязка PS к группам</h4>
+              <table class="assignments-table">
+                <thead>
+                  <tr>
+                    <th style="width:120px;">Консоль</th>
+                    <th>Тарифная группа</th>
+                  </tr>
+                </thead>
+                <tbody id="psAssignmentsBody"></tbody>
+              </table>
+              <div class="muted" id="psAssignmentsHint" style="margin-top:6px;font-size:0.82rem;">Укажите количество PS выше.</div>
+            </div>
+
+            <!-- ███ Ссылка и применение ███ -->
+            <div class="config-section">
+              <div class="row" style="flex-wrap:wrap;">
+                <button class="btn-main" id="applyConfigBtn" type="button">✅ Применить конфигурацию</button>
+              </div>
+              <div id="appliedLinksBlock" class="hidden" style="margin-top:10px;">
+                <div class="field-group" style="margin-bottom:10px;">
+                  <label class="field-label">Постоянная ссылка клуба</label>
+                  <input id="appliedClubLink" type="text" readonly placeholder="https://your-domain/club/slug">
+                  <div class="row" style="margin-top:8px;">
+                    <button class="btn-soft" id="copyAppliedClubLinkBtn" type="button">Копировать ссылку клуба</button>
+                  </div>
+                </div>
+
+                <div class="field-group" style="margin-bottom:0;">
+                  <label class="field-label">Invite-ссылка владельца</label>
+                  <input id="appliedOwnerInviteLink" type="text" readonly placeholder="https://your-domain/activate-owner?token=...">
+                  <div class="row" style="margin-top:8px;">
+                    <button class="btn-soft" id="copyAppliedOwnerInviteBtn" type="button">Копировать invite владельца</button>
+                    <button class="btn-warn" id="regenerateOwnerInviteBtn" type="button">Сгенерировать новую invite-ссылку владельца</button>
+                  </div>
+                </div>
+              </div>
+              <div class="note" id="ownerResult" style="margin-top:10px;">Готово.</div>
+            </div>
+
+          </div><!-- /configBlock -->
+        </section>
+      </div>
+
+    </div><!-- /ownerView -->
+  </div>
+
+  <script src="/static/owner.js"></script>
+</body>
+</html>

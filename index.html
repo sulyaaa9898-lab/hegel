@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Панель клуба | Киберклуб</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/club/combo2.css">
+</head>
+<body>
+
+<div id="authModal" class="auth-modal">
+  <div class="auth-box">
+    <h2 id="authTitle">Вход</h2>
+    <div class="auth-field">
+      <label>Логин</label>
+      <input type="text" id="loginInput" class="auth-input" autocomplete="off">
+    </div>
+    <div class="auth-field">
+      <label>Пароль</label>
+      <input type="password" id="passwordInput" class="auth-input">
+    </div>
+    <div id="repeatPasswordField" class="auth-field" style="display:none;">
+      <label>Повторите пароль</label>
+      <input type="password" id="repeatPassword" class="auth-input">
+      <small id="passwordMismatch" style="color:#f87171;display:none;margin-top:4px;">Пароли не совпадают</small>
+    </div>
+    <div id="nameField" class="auth-field" style="display:none;">
+      <label>Имя админа</label>
+      <input type="text" id="adminName" class="auth-input">
+    </div>
+    <div id="authInlineError" class="auth-inline-error" style="display:none;"></div>
+    <button id="authBtn" class="auth-btn" type="button">Войти</button>
+    <p id="switchMode">Нет аккаунта? Зарегистрироваться</p>
+  </div>
+</div>
+
+<div id="userPanel" class="app-layout" style="display:none;">
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">Панель клуба</div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <span class="nav-section-label">Навигация</span>
+
+      <a class="nav-item active" id="navDashboard" href="#"
+         onclick="
+           document.querySelectorAll('.nav-item').forEach(function(el){el.classList.remove('active');});
+           this.classList.add('active');
+           document.getElementById('dashboardSection').style.display='flex';
+           document.getElementById('bookingsSection').style.display='none';
+           if(window.refreshDashboard) window.refreshDashboard();
+           return false;
+         ">
+        <span class="nav-icon">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="1" y="1" width="5" height="5" rx="1" fill="currentColor" opacity="0.7"/>
+            <rect x="8" y="1" width="5" height="5" rx="1" fill="currentColor" opacity="0.7"/>
+            <rect x="1" y="8" width="5" height="5" rx="1" fill="currentColor" opacity="0.7"/>
+            <rect x="8" y="8" width="5" height="5" rx="1" fill="currentColor" opacity="0.7"/>
+          </svg>
+        </span>
+        Дашборд
+      </a>
+
+      <a class="nav-item" id="navPC" href="#"
+         onclick="
+           document.querySelectorAll('.nav-item').forEach(function(el){el.classList.remove('active');});
+           this.classList.add('active');
+           document.getElementById('dashboardSection').style.display='none';
+           document.getElementById('bookingsSection').style.display='flex';
+           switchPlatform('pc');
+           return false;
+         ">
+        <span class="nav-icon">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="1" y="2" width="12" height="8" rx="1.5" stroke="currentColor" stroke-width="1.2" fill="none"/>
+            <rect x="4" y="11" width="6" height="1" rx="0.5" fill="currentColor" opacity="0.6"/>
+            <rect x="5.5" y="10" width="3" height="1.5" fill="currentColor" opacity="0.5"/>
+          </svg>
+        </span>
+        Брони ПК
+      </a>
+
+      <a class="nav-item" id="navPS" href="#"
+         onclick="
+           document.querySelectorAll('.nav-item').forEach(function(el){el.classList.remove('active');});
+           this.classList.add('active');
+           document.getElementById('dashboardSection').style.display='none';
+           document.getElementById('bookingsSection').style.display='flex';
+           switchPlatform('ps');
+           return false;
+         ">
+        <span class="nav-icon">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.2" fill="none"/>
+            <circle cx="7" cy="7" r="2" fill="currentColor" opacity="0.5"/>
+          </svg>
+        </span>
+        PlayStation
+      </a>
+
+      <a class="nav-item" id="navClients" href="#"
+         onclick="
+           document.querySelectorAll('.nav-item').forEach(function(el){el.classList.remove('active');});
+           this.classList.add('active');
+           document.getElementById('dashboardSection').style.display='none';
+           document.getElementById('bookingsSection').style.display='flex';
+           switchPlatform('pc');
+           showGuestsPage();
+           return false;
+         ">
+        <span class="nav-icon">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="7" cy="4.5" r="2.5" stroke="currentColor" stroke-width="1.2" fill="none"/>
+            <path d="M2 12c0-2.761 2.239-5 5-5s5 2.239 5 5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" fill="none"/>
+          </svg>
+        </span>
+        Клиенты
+      </a>
+
+      <span class="nav-section-label" style="margin-top:8px;">Управление</span>
+
+      <button id="statsBtn" class="nav-item" type="button" style="display:none;"
+              onclick="showOwnerStats();">
+        <span class="nav-icon">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="1" y="7" width="3" height="6" rx="0.5" fill="currentColor" opacity="0.6"/>
+            <rect x="5.5" y="4" width="3" height="9" rx="0.5" fill="currentColor" opacity="0.6"/>
+            <rect x="10" y="1" width="3" height="12" rx="0.5" fill="currentColor" opacity="0.6"/>
+          </svg>
+        </span>
+        Статистика
+      </button>
+
+      <button id="adminBtn" class="nav-item" type="button" style="display:none;"
+              onclick="showAdmins();">
+        <span class="nav-icon">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="5" cy="4" r="2.2" stroke="currentColor" stroke-width="1.2" fill="none"/>
+            <circle cx="10" cy="5" r="1.8" stroke="currentColor" stroke-width="1.1" fill="none"/>
+            <path d="M1 12c0-2.209 1.791-4 4-4s4 1.791 4 4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" fill="none"/>
+            <path d="M10 9c1.657 0 3 1.343 3 3" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" fill="none"/>
+          </svg>
+        </span>
+        Админы
+      </button>
+
+      <button id="logsBtn" class="nav-item" type="button" style="display:none;"
+              onclick="downloadAuditLogs();">
+        <span class="nav-icon">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="2" y="1" width="10" height="12" rx="1.5" stroke="currentColor" stroke-width="1.2" fill="none"/>
+            <line x1="4.5" y1="4.5" x2="9.5" y2="4.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+            <line x1="4.5" y1="7"   x2="9.5" y2="7"   stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+            <line x1="4.5" y1="9.5" x2="7.5" y2="9.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+          </svg>
+        </span>
+        Логи
+      </button>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-meta">
+        <div class="current-user" id="currentUser"></div>
+        <div class="user-time" id="userTime"></div>
+      </div>
+      <div class="counter-wrap">
+        <span class="counter" id="counter">0/0</span>
+      </div>
+      <button class="btn-logout" type="button" onclick="logout()">Выход</button>
+    </div>
+  </aside>
+
+  <div class="main-wrapper">
+    <header class="top-header">
+      <div class="header-left">
+        <span class="page-title">Панель клуба</span>
+        <div id="subscriptionNotice" class="subscription-notice" style="display:none;"></div>
+      </div>
+      <div class="header-right">
+        <div class="platform-hooks" style="display:none;">
+          <button id="platformPcBtn" class="platform-btn active" type="button" onclick="switchPlatform('pc')">🖥 ПК</button>
+          <button id="platformPsBtn" class="platform-btn" type="button" onclick="switchPlatform('ps')">🎮 Плейстейшн</button>
+        </div>
+      </div>
+    </header>
+
+    <div class="content-area">
+      <div id="dashboardSection" style="display:flex; flex-direction:column; gap:24px;">
+
+        <div class="dashboard-heading">
+          <h2>Обзор</h2>
+          <span class="dashboard-sub">Статус клуба в реальном времени</span>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-card-icon">🖥</div>
+            <div class="stat-card-value" id="dashActivePc">—</div>
+            <div class="stat-card-label">Активные брони ПК</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-icon">🎮</div>
+            <div class="stat-card-value" id="dashActivePs">—</div>
+            <div class="stat-card-label">Сессии Плейстейшн</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-icon">📅</div>
+            <div class="stat-card-value" id="dashToday">—</div>
+            <div class="stat-card-label">Брони за сегодня</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-icon">✅</div>
+            <div class="stat-card-value" id="dashArrived">—</div>
+            <div class="stat-card-label">Пришедшие клиенты</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-icon">🚫</div>
+            <div class="stat-card-value" id="dashNoShow">—</div>
+            <div class="stat-card-label">Не пришедшие клиенты</div>
+          </div>
+        </div>
+
+        <div class="dashboard-bottom">
+          <div class="section-card">
+            <div class="section-card-header">
+              <span class="section-card-title">Уведомления</span>
+            </div>
+            <div class="activity-list" id="activityList">
+              <div class="activity-item">
+                <span class="activity-dot green"></span>
+                <div class="activity-content">
+                  <div class="activity-text"><strong>Панель клуба загружена</strong></div>
+                  <div class="activity-time">только что</div>
+                </div>
+              </div>
+              <div class="activity-item">
+                <span class="activity-dot gray"></span>
+                <div class="activity-content">
+                  <div class="activity-text">Ожидание событий…</div>
+                  <div class="activity-time">—</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div id="bookingsSection" style="display:none; flex-direction:column; gap:16px;">
+
+        <div class="controls-row" data-platform="pc">
+          <div class="left-buttons">
+            <button type="button" onclick="toggleAddPanel()">+ Добавить бронь</button>
+            <button type="button" onclick="toggleSearchPanel()">Поиск</button>
+            <button type="button" onclick="showGuestsPage()" style="margin-left:auto;">Рейтинг</button>
+          </div>
+          <button type="button" onclick="showDonePage()">Выполненные</button>
+        </div>
+
+        <div id="addPanel" class="panel" data-platform="pc">
+          <form id="bookingForm">
+            <div class="field">
+              <label>Имя</label>
+              <input type="text" id="name" required placeholder="">
+            </div>
+            <div class="field">
+              <label>ПК</label>
+              <input type="text" id="pc" required placeholder="">
+            </div>
+            <div class="field">
+              <label>Время</label>
+              <input type="text" id="time" maxlength="4" required placeholder="">
+            </div>
+            <div class="field">
+              <label>Дата</label>
+              <select id="date"></select>
+            </div>
+            <div class="field">
+              <label>Телефон</label>
+              <input type="tel" id="phone" value="+7" required>
+            </div>
+            <div class="field">
+              <label>Предоплата</label>
+              <input type="text" id="prepay" placeholder="">
+            </div>
+            <button type="submit">Добавить бронь</button>
+            <button type="button" onclick="openQuickBooking()" style="margin-top:10px;">+ Для текущего клиента</button>
+          </form>
+        </div>
+
+        <div id="searchPanel" class="panel" data-platform="pc">
+          <div class="field">
+            <label>Дата</label>
+            <select id="searchDate">
+              <option value="" selected>Все даты</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Имя</label>
+            <input type="text" id="searchName" placeholder="">
+          </div>
+          <div class="field">
+            <label>ПК</label>
+            <input type="text" id="searchPC" placeholder="">
+          </div>
+          <div class="field">
+            <label>Телефон</label>
+            <input type="text" id="searchPhone" placeholder="">
+          </div>
+          <button type="button" onclick="resetSearch()">Сбросить</button>
+        </div>
+
+        <div id="mainContent" class="main-content" data-platform="pc">
+          <table>
+            <thead>
+              <tr>
+                <th>Имя</th>
+                <th>ПК</th>
+                <th>Время</th>
+                <th>Дата</th>
+                <th>Телефон</th>
+                <th>Предоплата</th>
+                <th>Действия</th>
+              </tr>
+            </thead>
+            <tbody id="bookingTable"></tbody>
+          </table>
+        </div>
+
+        <div id="donePage" style="display:none;" data-platform="pc">
+          <div style="display:flex;justify-content:space-between;margin-bottom:14px;align-items:center;gap:10px;flex-wrap:wrap;">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;flex:1;min-width:240px;">
+              <input type="text" id="doneSearchName"  placeholder="Имя…"  style="flex:1;min-width:90px;">
+              <input type="text" id="doneSearchPhone" placeholder="Телефон…" style="flex:1;min-width:90px;">
+              <input type="text" id="doneSearchPC"    placeholder="PC…"    style="flex:1;min-width:70px;">
+              <select id="doneSearchDate" style="flex:1;min-width:90px;">
+                <option value="">Все даты</option>
+              </select>
+            </div>
+            <button type="button" onclick="hideDonePage()">← Назад</button>
+          </div>
+          <div class="main-content">
+            <table>
+              <thead>
+                <tr>
+                  <th>Имя</th><th>ПК</th><th>Время</th><th>Дата</th><th>Телефон</th><th>Предоплата</th><th>Статус</th>
+                </tr>
+              </thead>
+              <tbody id="doneTable"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="guestsPage" style="display:none;" data-platform="pc">
+          <div style="display:flex;justify-content:space-between;margin-bottom:16px;align-items:center;gap:12px;">
+            <input type="text" id="guestSearchInput" placeholder="Поиск клиентов…" style="flex:1;max-width:360px;">
+            <button type="button" onclick="hideGuestsPage()">← Назад</button>
+          </div>
+          <div class="guests-container" id="guestsContainer"></div>
+        </div>
+
+        <div id="psConsolesPage" style="display:none;" data-platform="ps">
+          <div class="main-content">
+            <table class="ps-console-table">
+              <thead>
+                <tr>
+                  <th>ПС №</th>
+                  <th>Статус</th>
+                  <th>Осталось времени</th>
+                  <th>Пакет</th>
+                  <th>Действия</th>
+                </tr>
+              </thead>
+              <tbody id="psConsolesTable"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="subscriptionBlockModal" class="modal subscription-block-modal" style="display:none;">
+  <div class="modal-content">
+    <h3>Подписка истекла</h3>
+    <p>Подписка истекла. Продлите подписку.</p>
+    <p style="font-size:0.92em;color:#fca5a5;">Работа панели временно заблокирована до продления.</p>
+  </div>
+</div>
+
+<div id="modal" class="modal">
+  <div class="modal-content">
+    <h3>Выберите действие</h3>
+    <p id="modalBookingInfo"></p>
+    <div class="modal-buttons">
+      <button type="button" onclick="markArrived()">✓ Пришёл</button>
+      <button type="button" onclick="markLate()">⏰ Опоздал (&gt;15 мин)</button>
+      <button type="button" onclick="markCancelled()">✕ Отмена брони</button>
+      <button type="button" onclick="markNoShow()">✗ Не пришёл</button>
+      <button type="button" onclick="closeModal()">Закрыть</button>
+    </div>
+  </div>
+</div>
+
+<div id="pcStatusModal" class="modal">
+  <div class="modal-content pc-mini-modal">
+    <h3>Отметка ПК</h3>
+    <p id="pcStatusBookingInfo"></p>
+    <div class="modal-buttons" style="flex-direction:row;justify-content:center;">
+      <button type="button" class="pc-mini-ok" onclick="confirmPCArrived()">✓</button>
+      <button type="button" onclick="closePCStatusModal()">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<div id="warnModal" class="modal">
+  <div class="modal-content">
+    <h3>Внимание</h3>
+    <p>ПК уже занят на эту дату. Добавить всё равно?</p>
+    <div class="modal-buttons" style="flex-direction:row;">
+      <button type="button" id="forceAddBtn">Добавить всё равно</button>
+      <button type="button" onclick="closeWarn()">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<div id="adminsModal" class="modal">
+  <div class="modal-content">
+    <h3>Администраторы</h3>
+    <div style="margin-bottom:12px;">
+      <button type="button" onclick="generateAdminInvite()">Сгенерировать invite для админа</button>
+      <input id="adminInviteLink" type="text" readonly style="margin-top:8px;width:100%;" placeholder="/register?token=...">
+      <button type="button" onclick="copyAdminInviteLink()" style="margin-top:8px;">Копировать invite</button>
+    </div>
+    <div id="adminList"></div>
+    <button type="button" onclick="closeAdminsModal()" style="margin-top:20px;">Закрыть</button>
+  </div>
+</div>
+
+<div id="ownerStatsModal" class="modal">
+  <div class="modal-content">
+    <h3>Статистика клуба</h3>
+    <div id="ownerStatsContent" class="owner-stats-grid"></div>
+    <button type="button" onclick="closeOwnerStatsModal()" style="margin-top:20px;">Закрыть</button>
+  </div>
+</div>
+
+<div id="quickBookingModal" class="modal">
+  <div class="modal-content">
+    <h3>Бронь для текущего клиента</h3>
+    <form id="quickBookingForm">
+      <div class="field">
+        <label>ПК текущего клиента</label>
+        <input type="text" id="currentClientPC" required placeholder="">
+      </div>
+      <div class="field">
+        <label>ПК для друзей</label>
+        <input type="text" id="friendsPCs" required placeholder="">
+      </div>
+      <div class="field">
+        <label>Время</label>
+        <input type="text" id="quickTime" maxlength="4" required placeholder="">
+      </div>
+      <div class="field">
+        <label>Дата</label>
+        <select id="quickDate"></select>
+      </div>
+      <div class="modal-buttons" style="flex-direction:row;">
+        <button type="submit">Добавить</button>
+        <button type="button" onclick="closeQuickBooking()">Отмена</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="psChoiceModal" class="modal">
+  <div class="modal-content">
+    <h3>ПС <span id="psChoiceNum"></span> — Выберите действие</h3>
+    <div class="modal-buttons" style="flex-direction:column;">
+      <button type="button" onclick="openPSPackages()">Пакеты</button>
+      <button type="button" onclick="openPSManual()">Вручную (часы / минуты)</button>
+      <button type="button" onclick="closePSChoiceModal()">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<div id="psPackagesModal" class="modal">
+  <div class="modal-content">
+    <h3>ПС <span id="psPackagesNum"></span> — Пакеты</h3>
+    <div class="ps-modal-grid" id="psPackagesList"></div>
+    <button type="button" onclick="closePSPackagesModal()" style="width:100%;margin-top:16px;">Отмена</button>
+  </div>
+</div>
+
+<div id="psManualModal" class="modal">
+  <div class="modal-content">
+    <h3>ПС <span id="psManualNum"></span> — Ручной ввод</h3>
+    <div class="field" style="margin-bottom:14px;">
+      <label>Часы (0–10)</label>
+      <input type="number" id="psHours" min="0" max="10" value="1" style="max-width:100px;">
+    </div>
+    <div class="field" style="margin-bottom:14px;">
+      <label>Минуты (шаг 5)</label>
+      <input type="number" id="psMinutes" min="0" max="59" step="5" value="0" style="max-width:100px;">
+    </div>
+    <div class="ps-time-display">Стоимость: <span id="psCostDisplay">0</span> тг</div>
+    <div class="modal-buttons" style="flex-direction:row;">
+      <button type="button" onclick="confirmPSManual()">Оплачено</button>
+      <button type="button" onclick="closePSManualModal()">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<div id="psAddTimeModal" class="modal">
+  <div class="modal-content">
+    <h3>ПС <span id="psAddNum"></span> — Добавить время</h3>
+    <div class="ps-modal-grid">
+      <button type="button" class="ps-package-btn" onclick="psAddQuick(5)">+5 мин</button>
+      <button type="button" class="ps-package-btn" onclick="psAddQuick(10)">+10 мин</button>
+      <button type="button" class="ps-package-btn" onclick="psAddQuick(15)">+15 мин</button>
+      <button type="button" class="ps-package-btn" onclick="psAddQuick(30)">+30 мин</button>
+      <button type="button" class="ps-package-btn" onclick="psAddQuick(60)">+1 час</button>
+    </div>
+    <div class="field" style="margin-bottom:14px;">
+      <label>Или введите минуты</label>
+      <input type="number" id="psAddMinutes" min="5" step="5" value="5" style="max-width:100px;">
+    </div>
+    <div class="ps-time-display">Стоимость: <span id="psAddCostDisplay">0</span> тг</div>
+    <div class="modal-buttons" style="flex-direction:row;">
+      <button type="button" onclick="confirmPSAdd()">Оплачено</button>
+      <button type="button" onclick="closePSAddTimeModal()">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<div id="psEndSessionModal" class="modal">
+  <div class="modal-content">
+    <h3>ПС <span id="psEndNum"></span> — Завершить сессию</h3>
+    <p style="font-size:1.1em;text-align:center;">Итого оплачено: <strong><span id="psTotalCost">0</span> тг</strong></p>
+    <div class="modal-buttons" style="flex-direction:row;">
+      <button type="button" onclick="confirmPSEnd()">Подтвердить</button>
+      <button type="button" onclick="closePSEndSessionModal()">Отмена</button>
+    </div>
+  </div>
+</div>
+
+<div id="psBookingModal" class="modal">
+  <div class="modal-content">
+    <h3>Забронировать ПС <span id="psBookingNum"></span></h3>
+    <form id="psBookingForm">
+      <div class="field">
+        <label>Имя</label>
+        <input type="text" id="psBookingName" required placeholder="">
+      </div>
+      <div class="field">
+        <label>Телефон</label>
+        <input type="tel" id="psBookingPhone" value="+7" required>
+      </div>
+      <div class="field">
+        <label>Время (ЧЧММ)</label>
+        <input type="text" id="psBookingTime" maxlength="4" required placeholder="">
+      </div>
+      <div class="field">
+        <label>Дата</label>
+        <select id="psBookingDate"></select>
+      </div>
+      <div class="modal-buttons" style="flex-direction:row;">
+        <button type="submit">Забронировать</button>
+        <button type="button" onclick="closePSBookingModal()">Отмена</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="editPCBookingModal" class="modal">
+  <div class="modal-content">
+    <h3>Редактировать бронь</h3>
+    <form id="editPCBookingForm">
+      <div class="field">
+        <label>Имя</label>
+        <input type="text" id="editPCName" required placeholder="">
+      </div>
+      <div class="field">
+        <label>ПК (через пробел или запятую)</label>
+        <input type="text" id="editPCNumbers" required placeholder="">
+      </div>
+      <div class="field">
+        <label>Время (ЧЧ:ММ)</label>
+        <input type="text" id="editPCTime" required placeholder="">
+      </div>
+      <div class="field">
+        <label>Дата</label>
+        <select id="editPCDate"></select>
+      </div>
+      <div class="field">
+        <label>Телефон</label>
+        <input type="tel" id="editPCPhone" value="+7" required>
+      </div>
+      <div class="field">
+        <label>Предоплата</label>
+        <input type="text" id="editPCPrepay" placeholder="50">
+      </div>
+      <div class="modal-buttons" style="flex-direction:row;">
+        <button type="submit">Сохранить</button>
+        <button type="button" onclick="closeEditPCBookingModal()">Отмена</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div id="editPSBookingModal" class="modal">
+  <div class="modal-content">
+    <h3>Редактировать бронь ПС <span id="editPSNum"></span></h3>
+    <form id="editPSBookingForm">
+      <div class="field">
+        <label>Имя</label>
+        <input type="text" id="editPSBookingName" required placeholder="">
+      </div>
+      <div class="field">
+        <label>Телефон</label>
+        <input type="tel" id="editPSBookingPhone" value="+7" required>
+      </div>
+      <div class="field">
+        <label>Время (ЧЧММ)</label>
+        <input type="text" id="editPSBookingTime" maxlength="4" required placeholder="">
+      </div>
+      <div class="field">
+        <label>Дата</label>
+        <select id="editPSBookingDate"></select>
+      </div>
+      <div class="modal-buttons" style="flex-direction:row;">
+        <button type="submit">Сохранить</button>
+        <button type="button" onclick="closeEditPSBookingModal()">Отмена</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+(function() {
+  function refreshDashboard() {
+    try {
+      var bookings = window.bookings || [];
+      var psConsoles = window.psConsoles || [];
+      var today = new Date();
+      var todayStr = today.toISOString().split('T')[0];
+
+      var activePc   = 0;
+      var todayCount = 0;
+      var arrived    = 0;
+      var noShow     = 0;
+
+      bookings.forEach(function(b) {
+        if (!b) return;
+        var bDate = b.date || '';
+        if (bDate.includes('.')) {
+          var parts = bDate.split('.');
+          if (parts.length === 3) bDate = parts[2] + '-' + parts[1] + '-' + parts[0];
+        }
+        var isToday = bDate === todayStr;
+        var status  = (b.status || '').toLowerCase();
+
+        if (status === 'pending'  || status === '') activePc++;
+        if (isToday) todayCount++;
+        if (isToday && status === 'arrived') arrived++;
+        if (isToday && status === 'no-show') noShow++;
+      });
+
+      var activePs = psConsoles.filter(function(c) {
+        return c && (c.status === 'active' || c.status === 'warning');
+      }).length;
+
+      setText('dashActivePc', activePc);
+      setText('dashActivePs', activePs);
+      setText('dashToday',    todayCount);
+      setText('dashArrived',  arrived);
+      setText('dashNoShow',   noShow);
+    } catch(e) {}
+  }
+
+  function setText(id, val) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = val;
+  }
+
+  window.addEventListener('load', function() {
+    setTimeout(function loop() {
+      refreshDashboard();
+      setTimeout(loop, 30000);
+    }, 800);
+  });
+
+  window.refreshDashboard = refreshDashboard;
+})();
+</script>
+<script src="/club/app-config.js"></script>
+<script src="/club/state.js"></script>
+<script src="/club/storage.js"></script>
+<script src="/club/auth.js"></script>
+<script src="/club/pc-bookings.js"></script>
+<script src="/club/ps.js"></script>
+<script src="/club/ui.js"></script>
+<script src="/club/combo2.js"></script>
+
+</body>
+</html>
