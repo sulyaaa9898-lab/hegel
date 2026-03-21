@@ -14,6 +14,7 @@ const CLUB_OWNER_ROLE = 'CLUB_OWNER';
 const INVITE_MODE_ADMIN = 'ADMIN';
 const INVITE_MODE_OWNER = 'OWNER';
 let authToken = '';
+let pendingForceAdminLogin = null;
 const inviteContext = {
 token: '',
 mode: null,
@@ -1819,6 +1820,7 @@ role: user.role
 if (authData && authData.subscription) {
 clubContext.subscription = resolveSubscriptionState(authData.subscription);
 }
+pendingForceAdminLogin = null;
 clearAuthInlineError();
 storage.saveCurrentAdmin(state);
 saveSessionAdmin(currentAdmin);
@@ -1893,26 +1895,24 @@ document.getElementById('adminName').value = '';
 document.getElementById('passwordMismatch').style.display = 'none';
 } else {
 try {
-await performClubLogin(login, pass, false);
+const shouldForceLogin = Boolean(
+pendingForceAdminLogin &&
+pendingForceAdminLogin.login === login &&
+pendingForceAdminLogin.password === pass
+);
+await performClubLogin(login, pass, shouldForceLogin);
 } catch (err) {
 if (err && err.code === 'ADMIN_SESSION_ACTIVE') {
+pendingForceAdminLogin = null;
 showAuthInlineError('В этом клубе уже работает другой администратор. Одновременно может быть только один администратор.');
 return;
 }
 if (err && err.code === 'ADMIN_ALREADY_LOGGED_IN') {
-uiModule.showConfirm(
-'У этого администратора уже есть активная сессия. Завершить прошлую сессию и войти здесь?',
-async () => {
-	try {
-		await performClubLogin(login, pass, true);
-	} catch (forceErr) {
-		showAuthInlineError(forceErr.message || 'Не удалось завершить прошлую сессию и войти.');
-	}
-},
-'Активная сессия'
-);
+pendingForceAdminLogin = { login, password: pass };
+showAuthInlineError('Этот администратор уже находится в активной сессии. Нажмите "Войти" еще раз, чтобы завершить прошлую сессию и войти здесь.');
 return;
 }
+pendingForceAdminLogin = null;
 showAuthInlineError(err.message || 'Неверный логин или пароль');
 }
 }
