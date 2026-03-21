@@ -72,7 +72,12 @@
 	}
 
 	function setStatus(msg) {
-		els.ownerResult.textContent = msg;
+		if (els && els.ownerResult) {
+			els.ownerResult.textContent = msg;
+		} else {
+			const el = document.getElementById('ownerResult');
+			if (el) el.textContent = msg;
+		}
 	}
 
 	function isTrialType(value) {
@@ -546,18 +551,63 @@
 			if (emptyMessage) setStatus(emptyMessage);
 			return;
 		}
-		navigator.clipboard.writeText(url).then(
-			() => setStatus(`Скопировано: ${url}`),
-			() => setStatus(`Ссылка: ${url}`)
-		);
+		
+		// Проверяем, использует ли страница HTTPS или localhost
+		const isSecure = window.isSecureContext;
+		
+		if (navigator.clipboard && navigator.clipboard.writeText && isSecure) {
+			// Используем clipboard API если доступно и безопасный контекст
+			navigator.clipboard.writeText(url).then(
+				() => setStatus(`✅ Скопировано: ${url}`),
+				(err) => {
+					console.error('Clipboard API error:', err);
+					// Fallback на старый метод
+					copyTextFallback(url);
+					setStatus(`Ссылка скопирована (режим fallback): ${url}`);
+				}
+			);
+		} else {
+			// Используем fallback для HTTP или старых браузеров
+			copyTextFallback(url);
+			if (!isSecure && !window.location.hostname.includes('localhost')) {
+				setStatus(`✅ Скопировано (режим fallback, т.к. используется HTTP): ${url}`);
+			} else {
+				setStatus(`✅ Скопировано: ${url}`);
+			}
+		}
+	}
+	
+	function copyTextFallback(url) {
+		const textarea = document.createElement('textarea');
+		textarea.value = url;
+		textarea.style.position = 'fixed';
+		textarea.style.opacity = '0';
+		document.body.appendChild(textarea);
+		textarea.select();
+		try {
+			document.execCommand('copy');
+		} catch (err) {
+			console.error('Fallback copy error:', err);
+		}
+		document.body.removeChild(textarea);
 	}
 
 	function copyAppliedClubLink() {
-		copyText(els.appliedClubLink?.value, 'Ссылка клуба пока недоступна. Примените конфигурацию клуба.');
+		const input = document.getElementById('appliedClubLink');
+		if (!input) {
+			console.error('appliedClubLink element not found in DOM');
+			return;
+		}
+		copyText(input.value, 'Ссылка клуба пока недоступна. Примените конфигурацию клуба.');
 	}
 
 	function copyAppliedOwnerInvite() {
-		copyText(els.appliedOwnerInviteLink?.value, 'Owner invite link недоступна. Возможно, владелец уже активирован.');
+		const input = document.getElementById('appliedOwnerInviteLink');
+		if (!input) {
+			console.error('appliedOwnerInviteLink element not found in DOM');
+			return;
+		}
+		copyText(input.value, 'Owner invite link недоступна. Возможно, владелец уже активирован.');
 	}
 
 	async function regenerateOwnerInvite() {
@@ -637,6 +687,20 @@
 	}
 
 	async function init() {
+		console.log('🔧 Initializing owner panel...');
+		console.log('Protocol:', window.location.protocol);
+		console.log('Secure context:', window.isSecureContext);
+		console.log('Available elements:', {
+			appliedClubLink: !!els.appliedClubLink,
+			copyAppliedClubLinkBtn: !!els.copyAppliedClubLinkBtn,
+			appliedOwnerInviteLink: !!els.appliedOwnerInviteLink,
+			ownerResult: !!els.ownerResult
+		});
+		
+		if (!window.isSecureContext && window.location.protocol === 'http:') {
+			console.warn('⚠️ Page is using HTTP (not HTTPS). Clipboard API will use fallback method.');
+		}
+		
 		bind();
 		syncCountModeUI();
 		syncSubscriptionInputs();
