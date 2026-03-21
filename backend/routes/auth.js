@@ -182,13 +182,15 @@ router.post('/login', async (req, res, next) => {
       const activeSession = await ensureNoActiveClubAdminSession(db, admin.club_id);
       if (activeSession) {
         if (Number(activeSession.admin_id) === Number(admin.id)) {
-          // Same admin is re-logging in (e.g., tab refresh or stale token): rotate session entry.
-          await dbRun(db, 'DELETE FROM admin_active_sessions WHERE club_id = ? AND admin_id = ?', [admin.club_id, admin.id]);
+          return res.status(409).json({
+            error: 'Этот администратор уже находится в активной сессии. Сначала завершите текущую сессию.',
+            code: 'ADMIN_ALREADY_LOGGED_IN'
+          });
         } else {
-        return res.status(409).json({
-          error: 'В этом клубе уже работает другой администратор. Одновременно может быть только один администратор.',
-          code: 'ADMIN_SESSION_ACTIVE'
-        });
+          return res.status(409).json({
+            error: 'В этом клубе уже работает другой администратор. Одновременно может быть только один администратор.',
+            code: 'ADMIN_SESSION_ACTIVE'
+          });
         }
       }
     }
