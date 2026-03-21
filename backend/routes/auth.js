@@ -31,7 +31,8 @@ function createToken(admin) {
       role: getEffectiveRole(admin),
       club_id: admin.club_id ?? null,
       is_club_owner: Boolean(admin.is_club_owner),
-      is_root: admin.is_root
+      is_root: admin.is_root,
+      token_version: Number(admin.token_version || 0)
     },
     JWT_SECRET,
     { expiresIn: JWT_EXPIRY }
@@ -115,7 +116,7 @@ router.post('/login', async (req, res, next) => {
     if (hasClubContext) {
       admin = await dbGet(
         db,
-        `SELECT id, login, password_hash, name, role, saas_role, club_id, is_root, is_club_owner
+        `SELECT id, login, password_hash, name, role, saas_role, club_id, is_root, is_club_owner, token_version
          FROM admins
          WHERE login = ? AND club_id = ? AND deleted_at IS NULL
          LIMIT 1`,
@@ -124,7 +125,7 @@ router.post('/login', async (req, res, next) => {
     } else {
       const rows = await dbAll(
         db,
-        `SELECT id, login, password_hash, name, role, saas_role, club_id, is_root, is_club_owner
+        `SELECT id, login, password_hash, name, role, saas_role, club_id, is_root, is_club_owner, token_version
          FROM admins
          WHERE login = ? AND deleted_at IS NULL
          ORDER BY is_root DESC, is_club_owner DESC, id ASC`,

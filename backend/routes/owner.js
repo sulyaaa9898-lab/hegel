@@ -24,6 +24,7 @@ async function createOwnerInvite(db, clubId, createdByAdminId) {
      WHERE club_id = ?
        AND is_club_owner = 1
        AND deleted_at IS NULL
+     ORDER BY id ASC
      LIMIT 1`,
     [clubId]
   );
@@ -92,6 +93,19 @@ async function revokeActiveOwnerInvites(db, clubId) {
 async function rotateOwnerInvite(db, clubId, createdByAdminId) {
   await revokeActiveOwnerInvites(db, clubId);
   return createOwnerInvite(db, clubId, createdByAdminId);
+}
+
+async function getActiveClubOwners(db, clubId) {
+  return dbAll(
+    db,
+    `SELECT id, login
+     FROM admins
+     WHERE club_id = ?
+       AND is_club_owner = 1
+       AND deleted_at IS NULL
+     ORDER BY id ASC`,
+    [clubId]
+  );
 }
 
 function toSlug(value) {
@@ -1066,44 +1080,45 @@ router.post('/clubs/:id/owner-access/reset', async (req, res, next) => {
     // Start transaction to ensure all operations succeed or fail together
     await dbRun(db, 'BEGIN TRANSACTION');
     try {
-      // 1. Soft-delete existing owner for this club (if exists)
-      const existingOwner = await dbGet(
-        db,
-        `SELECT id FROM admins
-         WHERE club_id = ? AND is_club_owner = 1 AND deleted_at IS NULL
-         LIMIT 1`,
-        [clubId]
-      );
+      // 1. Soft-delete all active owners for this club.
+      const activeOwners = await getActiveClubOwners(db, clubId);
 
-      if (existingOwner) {
+      if (activeOwners.length) {
         await dbRun(
           db,
-          `UPDATE admins SET deleted_at = ? WHERE id = ?`,
-          [timestamp, existingOwner.id]
+          `UPDATE admins
+           SET deleted_at = ?,
+               token_version = token_version + 1
+           WHERE club_id = ?
+             AND is_club_owner = 1
+             AND deleted_at IS NULL`,
+          [timestamp, clubId]
         );
-        
-        // 2. Blacklist old owner sessions
-        const oldSessions = await dbAll(
-          db,
-          `SELECT token_hash, expires_at FROM admin_active_sessions WHERE admin_id = ?`,
-          [existingOwner.id]
-        );
-        
-        for (const session of oldSessions) {
+
+        // 2. Blacklist any tracked sessions for those owners.
+        for (const owner of activeOwners) {
+          const oldSessions = await dbAll(
+            db,
+            `SELECT token_hash, expires_at FROM admin_active_sessions WHERE admin_id = ?`,
+            [owner.id]
+          );
+
+          for (const session of oldSessions) {
+            await dbRun(
+              db,
+              `INSERT OR IGNORE INTO token_blacklist (token_hash, admin_id, blacklisted_at, expires_at)
+               VALUES (?, ?, ?, ?)`,
+              [session.token_hash, owner.id, timestamp, session.expires_at]
+            );
+          }
+
+          // 3. Delete active sessions for each revoked owner.
           await dbRun(
             db,
-            `INSERT INTO token_blacklist (token_hash, admin_id, blacklisted_at, expires_at)
-             VALUES (?, ?, ?, ?)`,
-            [session.token_hash, existingOwner.id, timestamp, session.expires_at]
+            `DELETE FROM admin_active_sessions WHERE admin_id = ?`,
+            [owner.id]
           );
         }
-        
-        // 3. Delete active sessions for this admin
-        await dbRun(
-          db,
-          `DELETE FROM admin_active_sessions WHERE admin_id = ?`,
-          [existingOwner.id]
-        );
       }
 
       // 4. Revoke all old owner invite tokens for this club

@@ -37,6 +37,19 @@ export async function requireAuth(req, res, next) {
       return res.status(401).json({ error: 'Token is no longer valid' });
     }
 
+    // Reject tokens belonging to deactivated/deleted accounts or with revoked token_version.
+    const adminRecord = await dbGet(
+      db,
+      'SELECT id, token_version FROM admins WHERE id = ? AND deleted_at IS NULL LIMIT 1',
+      [payload.sub]
+    );
+    if (!adminRecord) {
+      return res.status(401).json({ error: 'Account is no longer active', code: 'ACCOUNT_DEACTIVATED' });
+    }
+    if (Number(payload.token_version || 0) !== Number(adminRecord.token_version || 0)) {
+      return res.status(401).json({ error: 'Session has been revoked. Please log in again.', code: 'SESSION_REVOKED' });
+    }
+
     req.auth = {
       token,
       adminId: payload.sub,

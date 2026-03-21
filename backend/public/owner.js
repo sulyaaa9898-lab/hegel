@@ -620,38 +620,31 @@
 			});
 			setAppliedLinks(result.club_link || state.selectedClub.local_link || '', result.owner_invite_link || '');
 			setStatus('Новая invite-ссылка создана. Предыдущая ссылка аннулирована.');
-
-			async function resetOwnerAccess() {
-				if (!state.selectedClub) return;
-		
-				const confirmed = confirm(
-					'⚠️ ВНИМАНИЕ!\n\n' +
-					'Это действие полностью сбросит доступ текущего владельца клуба:\n' +
-					'• Старый логин/пароль больше не будут работать\n' +
-					'• Все сессии будут отозваны\n' +
-					'• Старая invite-ссылка станет недействительной\n' +
-					'• Будет сгенерирована новая invite-ссылка\n\n' +
-					'Владелец сможет активировать новый доступ с помощью новой ссылки.\n\n' +
-					'Продолжить?'
-				);
-		
-				if (!confirmed) return;
-		
-				try {
-					setStatus('Выполняю сброс доступа владельца...');
-					const result = await api(`/api/owner/clubs/${state.selectedClub.id}/owner-access/reset`, {
-						method: 'POST',
-						headers: jsonHeaders()
-					});
-			
-					setAppliedLinks(result.club_link || state.selectedClub.local_link || '', result.new_invite_link || '');
-					setStatus('✅ ' + (result.message || 'Доступ владельца успешно сброшен! Новая invite-ссылка создана.'));
-				} catch (err) {
-					setStatus('❌ Ошибка при сбросе доступа: ' + (err.message || 'Неизвестная ошибка'));
-				}
-			}
 		} catch (err) {
 			setStatus(err.message);
+		}
+	}
+
+	async function resetOwnerAccess() {
+		if (!state.selectedClub) return;
+
+		const confirmed = window.confirm(
+			'Это действие деактивирует текущего владельца клуба, аннулирует старую invite-ссылку и создаст новую. Продолжить?'
+		);
+
+		if (!confirmed) return;
+
+		try {
+			setStatus('Выполняю сброс доступа владельца...');
+			const result = await api(`/api/owner/clubs/${state.selectedClub.id}/owner-access/reset`, {
+				method: 'POST',
+				headers: jsonHeaders()
+			});
+
+			setAppliedLinks(result.club_link || state.selectedClub.local_link || '', result.new_invite_link || '');
+			setStatus(result.message || 'Доступ владельца успешно сброшен. Новая invite-ссылка создана.');
+		} catch (err) {
+			setStatus(err.message || 'Не удалось сбросить доступ владельца.');
 		}
 	}
 
@@ -697,25 +690,25 @@
 	}
 
 	function bind() {
-		els.loginBtn.addEventListener('click', login);
-		els.logoutBtn.addEventListener('click', logout);
-		els.refreshBtn.addEventListener('click', refreshAll);
-		els.createClubBtn.addEventListener('click', createClub);
-		els.clubSubscriptionType.addEventListener('change', syncSubscriptionInputs);
-		els.pcCountMode.addEventListener('change', syncCountModeUI);
-		els.psCountMode.addEventListener('change', syncCountModeUI);
-		els.addGroupBtn.addEventListener('click', () => addGroup({ name: '', hourlyPrice: 0, packages: [] }));
-		els.psCount.addEventListener('input', () => rebuildAssignments());
-		els.applyConfigBtn.addEventListener('click', applyConfig);
-		els.copyAppliedClubLinkBtn.addEventListener('click', copyAppliedClubLink);
-		els.copyAppliedOwnerInviteBtn.addEventListener('click', copyAppliedOwnerInvite);
-		els.regenerateOwnerInviteBtn.addEventListener('click', regenerateOwnerInvite);
-		els.resetOwnerAccessBtn.addEventListener('click', resetOwnerAccess);
-		els.enableBtn.addEventListener('click', () => updateEnable(true));
-		els.disableBtn.addEventListener('click', () => updateEnable(false));
-		els.deleteClubBtn.addEventListener('click', deleteSelectedClub);
-		els.subSelect.addEventListener('change', syncSubscriptionInputs);
-		els.updateSubBtn.addEventListener('click', updateSubscription);
+		if (els.loginBtn) els.loginBtn.addEventListener('click', login);
+		if (els.logoutBtn) els.logoutBtn.addEventListener('click', logout);
+		if (els.refreshBtn) els.refreshBtn.addEventListener('click', refreshAll);
+		if (els.createClubBtn) els.createClubBtn.addEventListener('click', createClub);
+		if (els.clubSubscriptionType) els.clubSubscriptionType.addEventListener('change', syncSubscriptionInputs);
+		if (els.pcCountMode) els.pcCountMode.addEventListener('change', syncCountModeUI);
+		if (els.psCountMode) els.psCountMode.addEventListener('change', syncCountModeUI);
+		if (els.addGroupBtn) els.addGroupBtn.addEventListener('click', () => addGroup({ name: '', hourlyPrice: 0, packages: [] }));
+		if (els.psCount) els.psCount.addEventListener('input', () => rebuildAssignments());
+		if (els.applyConfigBtn) els.applyConfigBtn.addEventListener('click', applyConfig);
+		if (els.copyAppliedClubLinkBtn) els.copyAppliedClubLinkBtn.addEventListener('click', copyAppliedClubLink);
+		if (els.copyAppliedOwnerInviteBtn) els.copyAppliedOwnerInviteBtn.addEventListener('click', copyAppliedOwnerInvite);
+		if (els.regenerateOwnerInviteBtn) els.regenerateOwnerInviteBtn.addEventListener('click', regenerateOwnerInvite);
+		if (els.resetOwnerAccessBtn) els.resetOwnerAccessBtn.addEventListener('click', resetOwnerAccess);
+		if (els.enableBtn) els.enableBtn.addEventListener('click', () => updateEnable(true));
+		if (els.disableBtn) els.disableBtn.addEventListener('click', () => updateEnable(false));
+		if (els.deleteClubBtn) els.deleteClubBtn.addEventListener('click', deleteSelectedClub);
+		if (els.subSelect) els.subSelect.addEventListener('change', syncSubscriptionInputs);
+		if (els.updateSubBtn) els.updateSubBtn.addEventListener('click', updateSubscription);
 	}
 
 	async function init() {

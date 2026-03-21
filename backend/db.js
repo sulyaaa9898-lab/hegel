@@ -428,6 +428,7 @@ async function runMigrations(db) {
   await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_guest_ratings_club_id ON guest_ratings(club_id)');
   await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_audit_logs_club_id ON audit_logs(club_id)');
   await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_token_blacklist_club_id ON token_blacklist(club_id)');
+  await ensureColumn(db, 'admins', 'token_version', 'INTEGER NOT NULL DEFAULT 0');
 }
 
 async function tableReferencesAdminsOld(db, tableName) {
