@@ -5,21 +5,39 @@ import path from 'path';
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
 import { initializeDatabase, closeDatabase, dbRun } from './db.js';
-import authRoutes from './routes/auth.js';
-import bookingsPcRoutes from './routes/bookings-pc.js';
-import bookingsPsRoutes from './routes/bookings-ps.js';
-import psConsolesRoutes from './routes/ps-consoles.js';
-import guestsRoutes from './routes/guests.js';
-import adminsRoutes from './routes/admins.js';
-import auditRoutes from './routes/audit.js';
-import ownerRoutes from './routes/owner.js';
-import publicRoutes from './routes/public.js';
-import clubRoutes from './routes/club.js';
-import { cleanupSecurityArtifacts } from './utils/security.js';
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 require('dotenv').config();
+
+const [
+  { default: authRoutes },
+  { default: bookingsPcRoutes },
+  { default: bookingsPsRoutes },
+  { default: psConsolesRoutes },
+  { default: guestsRoutes },
+  { default: adminsRoutes },
+  { default: auditRoutes },
+  { default: ownerRoutes },
+  { default: publicRoutes },
+  { default: clubRoutes },
+  { cleanupSecurityArtifacts },
+  { BASE_URL }
+] = await Promise.all([
+  import('./routes/auth.js'),
+  import('./routes/bookings-pc.js'),
+  import('./routes/bookings-ps.js'),
+  import('./routes/ps-consoles.js'),
+  import('./routes/guests.js'),
+  import('./routes/admins.js'),
+  import('./routes/audit.js'),
+  import('./routes/owner.js'),
+  import('./routes/public.js'),
+  import('./routes/club.js'),
+  import('./utils/security.js'),
+  import('./config/env.js')
+]);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -126,6 +144,7 @@ async function start() {
 
     const server = app.listen(PORT, HOST);
     console.log(`Server running on http://${HOST}:${PORT}`);
+    console.log('Base URL:', BASE_URL);
 
     const cleanupTimer = setInterval(async () => {
       try {

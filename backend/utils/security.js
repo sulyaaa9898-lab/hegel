@@ -1,28 +1,13 @@
 import crypto from 'node:crypto';
-
-const DEFAULT_PORT = process.env.PORT || '3000';
-const DEFAULT_HOST = process.env.HOST || '0.0.0.0';
-const DEFAULT_BASE_URL = process.env.APP_BASE_URL || `http://${DEFAULT_HOST}:${DEFAULT_PORT}`;
+import { BASE_URL } from '../config/env.js';
 
 export const INVITE_OWNER_TTL_DAYS = Number(process.env.OWNER_INVITE_TTL_DAYS || 7);
 export const INVITE_ADMIN_TTL_DAYS = Number(process.env.ADMIN_INVITE_TTL_DAYS || 7);
 export const ADMIN_SESSION_IDLE_MINUTES = Number(process.env.ADMIN_SESSION_IDLE_MINUTES || 90);
 
-function normalizeBaseUrl(input) {
-  const raw = String(input || '').trim().replace(/\s+/g, '');
-  if (!raw) return DEFAULT_BASE_URL;
-  try {
-    const parsed = new URL(raw);
-    return parsed.origin;
-  } catch (_) {
-    return DEFAULT_BASE_URL;
-  }
-}
-
 export function buildPublicUrl(pathname) {
-  const base = normalizeBaseUrl(process.env.APP_BASE_URL);
   const normalizedPath = `/${String(pathname || '').trim().replace(/^\/+/, '')}`;
-  return new URL(normalizedPath, `${base}/`).toString();
+  return new URL(normalizedPath, `${BASE_URL}/`).toString();
 }
 
 export function createInviteToken() {
