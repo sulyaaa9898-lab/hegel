@@ -681,6 +681,46 @@ const encodedMessage = encodeURIComponent(message);
 const whatsappUrl = `whatsapp://send?phone=${phoneDigits}&text=${encodedMessage}`;
 window.location.href = whatsappUrl;
 }
+function sendWhatsAppPSBooking(name, psID, time, dateDisplay, phone) {
+const phoneDigits = phone.replace(/\D/g, '');
+if (phoneDigits.length !== 11) return;
+const clubName = String(clubContext.name || '').trim();
+let message = `Сәлеметсіз бе, ${name}!\n\nPlayStation #${psID} сіздің атыңызға ${time}, ${dateDisplay} күні брондалды.`;
+message += `\n\nУақытында келуіңізді сұраймыз - бронь 15 минут сақталады.`;
+if (clubName) {
+message += `\n\n${clubName} командасы <3`;
+}
+message += `\n\n---\n\n`;
+message += `Здравствуйте, ${name}!\n\nPlayStation #${psID} забронирована на Ваше имя на ${time}, ${dateDisplay}.`;
+message += `\n\nПросим прийти вовремя - бронь держится 15 минут.`;
+if (clubName) {
+message += `\n\nС любовью, ${clubName} <3`;
+}
+const encodedMessage = encodeURIComponent(message);
+const whatsappUrl = `whatsapp://send?phone=${phoneDigits}&text=${encodedMessage}`;
+window.location.href = whatsappUrl;
+}
+function sendWhatsAppPSReminder(booking, psID) {
+if (!booking || !booking.phone) return;
+let phoneDigits = booking.phone.replace(/\D/g, '');
+if (phoneDigits.startsWith('8')) phoneDigits = `7${phoneDigits.slice(1)}`;
+if (!(phoneDigits.startsWith('7') && phoneDigits.length === 11)) return;
+
+const dateText = booking.dateDisplay || booking.dateValue.split('-').reverse().join('.');
+const clubName = String(clubContext.name || '').trim();
+let message = `Сәлеметсіз бе, ${booking.name}!\n\nСізде PlayStation #${psID} үшін ${booking.time}, ${dateText} уақытына бронь бар.`;
+message += `\nҚазіргі уақыт бронь уақытынан өтті. Келетініңізді растауыңызды сұраймыз.`;
+message += `\n\n---\n\n`;
+message += `Здравствуйте, ${booking.name}!\n\nУ Вас бронь на PlayStation #${psID} на ${booking.time}, ${dateText}.`;
+message += `\nСейчас время брони уже наступило. Пожалуйста, подтвердите, что Вы в пути.`;
+if (clubName) {
+message += `\n\n${clubName}`;
+}
+
+const encodedMessage = encodeURIComponent(message);
+const whatsappUrl = `whatsapp://send?phone=${phoneDigits}&text=${encodedMessage}`;
+window.location.href = whatsappUrl;
+}
 function getLocalDateString(date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -2274,6 +2314,14 @@ bookBtn.onclick = () => openPSBooking(ps.id);
 actionDiv.appendChild(startBtn);
 actionDiv.appendChild(bookBtn);
 } else if (ps.status === 'booked') {
+const overdue = ps.booking ? isBookingOverdue(ps.booking) : false;
+if (overdue && ps.booking && ps.booking.phone) {
+const remindBtn = document.createElement('button');
+remindBtn.className = 'ps-btn';
+remindBtn.textContent = 'Напомнить';
+remindBtn.onclick = () => sendWhatsAppPSReminder(ps.booking, ps.id);
+actionDiv.appendChild(remindBtn);
+}
 const editBtn = document.createElement('button');
 editBtn.className = 'ps-btn';
 editBtn.textContent = 'Редактировать бронь';
@@ -2787,6 +2835,7 @@ savePSState();
 closePSBookingModal();
 renderPSConsoles();
 notify('✅ ПС забронирована', 'Успешно');
+sendWhatsAppPSBooking(ps.booking.name, currentPSID, ps.booking.time, ps.booking.dateDisplay, ps.booking.phone);
 apiRequest('/bookings/ps', {
 method: 'POST',
 body: JSON.stringify({
