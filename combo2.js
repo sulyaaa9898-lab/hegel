@@ -3019,6 +3019,9 @@ initPSConsoles();
 if (currentAdmin && getAuthToken()) {
 try {
 const refreshed = await apiRequest('/auth/refresh', { method: 'POST' });
+if (refreshed && refreshed.token) {
+setAuthToken(refreshed.token);
+}
 const admin = refreshed && refreshed.admin ? refreshed.admin : null;
 if (admin) {
 const isClubScoped = admin.role === CLUB_ADMIN_ROLE || admin.role === CLUB_OWNER_ROLE;

@@ -61,9 +61,12 @@ async function ensureNoActiveClubAdminSession(db, clubId) {
 
   return dbGet(
     db,
-    `SELECT id, admin_id
-     FROM admin_active_sessions
-     WHERE club_id = ?
+    `SELECT s.id, s.admin_id
+     FROM admin_active_sessions s
+     JOIN admins a ON a.id = s.admin_id
+     WHERE s.club_id = ?
+       AND a.deleted_at IS NULL
+       AND COALESCE(a.is_club_owner, 0) = 0
      LIMIT 1`,
     [clubId]
   );
@@ -178,10 +181,15 @@ router.post('/login', async (req, res, next) => {
     if (effectiveRole === CLUB_ADMIN_ROLE) {
       const activeSession = await ensureNoActiveClubAdminSession(db, admin.club_id);
       if (activeSession) {
+        if (Number(activeSession.admin_id) === Number(admin.id)) {
+          // Same admin is re-logging in (e.g., tab refresh or stale token): rotate session entry.
+          await dbRun(db, 'DELETE FROM admin_active_sessions WHERE club_id = ? AND admin_id = ?', [admin.club_id, admin.id]);
+        } else {
         return res.status(409).json({
           error: 'В этом клубе уже работает другой администратор. Одновременно может быть только один администратор.',
           code: 'ADMIN_SESSION_ACTIVE'
         });
+        }
       }
     }
 
@@ -251,8 +259,8 @@ router.post('/logout', requireAuth, async (req, res, next) => {
     if (req.auth.role === CLUB_ADMIN_ROLE && req.auth.clubId) {
       await dbRun(
         db,
-        'DELETE FROM admin_active_sessions WHERE club_id = ? AND admin_id = ? AND token_hash = ?',
-        [req.auth.clubId, req.auth.adminId, tokenHash]
+        'DELETE FROM admin_active_sessions WHERE club_id = ? AND admin_id = ?',
+        [req.auth.clubId, req.auth.adminId]
       );
     }
 

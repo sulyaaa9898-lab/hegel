@@ -65,9 +65,12 @@ export async function requireAuth(req, res, next) {
     if (req.auth.role === CLUB_ADMIN_ROLE && req.auth.clubId) {
       const activeSession = await dbGet(
         db,
-        `SELECT admin_id, token_hash, expires_at, created_at, last_seen_at
-         FROM admin_active_sessions
-         WHERE club_id = ?
+        `SELECT s.admin_id, s.token_hash, s.expires_at, s.created_at, s.last_seen_at
+         FROM admin_active_sessions s
+         JOIN admins a ON a.id = s.admin_id
+         WHERE s.club_id = ?
+           AND a.deleted_at IS NULL
+           AND COALESCE(a.is_club_owner, 0) = 0
          LIMIT 1`,
         [req.auth.clubId]
       );

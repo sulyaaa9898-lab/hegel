@@ -38,4 +38,13 @@ export async function cleanupSecurityArtifacts(db, dbRun) {
     'DELETE FROM admin_active_sessions WHERE expires_at <= ? OR COALESCE(last_seen_at, created_at) <= ?',
     [nowIso, idleCutoffIso]
   );
+  await dbRun(
+    db,
+    `DELETE FROM admin_active_sessions
+     WHERE admin_id IN (
+       SELECT id
+       FROM admins
+       WHERE deleted_at IS NOT NULL OR COALESCE(is_club_owner, 0) = 1
+     )`
+  );
 }
