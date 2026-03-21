@@ -195,7 +195,7 @@
 		const ok = Boolean(state.token && state.admin && state.admin.role === 'SUPER_ADMIN');
 		els.authView.classList.toggle('hidden', ok);
 		els.ownerView.classList.toggle('hidden', !ok);
-		els.ownerStatus.textContent = ok ? `Вход: ${state.admin.login} (SUPER_ADMIN)` : 'Войдите как SUPER_ADMIN';
+		els.ownerStatus.textContent = ok ? `Вход: ${state.admin.login} (SUPER_ADMIN)` : '';
 	}
 
 	function getGroupNames() {
@@ -208,9 +208,9 @@
 		const row = document.createElement('div');
 		row.className = 'package-row';
 		row.innerHTML = `
-			<input data-pk="name" type="text" placeholder="Название пакета" value="${pkg.name || ''}">
-			<input data-pk="price" type="number" min="0" placeholder="Цена" value="${pkg.price || ''}">
-			<input data-pk="duration" type="number" min="1" placeholder="Минуты" value="${pkg.duration_minutes || ''}">
+			<input data-pk="name" type="text" value="${pkg.name || ''}">
+			<input data-pk="price" type="number" min="0" value="${pkg.price || ''}">
+			<input data-pk="duration" type="number" min="1" value="${pkg.duration_minutes || ''}">
 			<button class="btn-bad" data-pk="remove" type="button" title="Удалить пакет">✕</button>
 		`;
 		row.querySelector('[data-pk="remove"]').addEventListener('click', () => row.remove());
@@ -246,9 +246,7 @@
 		tbody.innerHTML = '';
 
 		if (count === 0) {
-			els.psAssignmentsHint.textContent = normalizeCountMode(els.psCountMode.value) === COUNT_MODE_SKIP
-				? 'Количество PS не задано (режим: Не указывать количество).'
-				: 'Укажите количество PS выше.';
+			els.psAssignmentsHint.textContent = '';
 			return;
 		}
 		els.psAssignmentsHint.textContent = '';
@@ -275,11 +273,11 @@
 				<div class="split-2" style="flex:1;">
 					<div class="field-group" style="margin-bottom:0;">
 						<label class="field-label">Название группы</label>
-						<input data-gk="name" type="text" placeholder="Standard, VIP..." value="${groupData.name || ''}">
+						<input data-gk="name" type="text" value="${groupData.name || ''}">
 					</div>
 					<div class="field-group" style="margin-bottom:0;">
 						<label class="field-label">Почасовая цена (₸)</label>
-						<input data-gk="hourly" type="number" min="0" placeholder="0" value="${groupData.hourlyPrice || ''}">
+						<input data-gk="hourly" type="number" min="0" value="${groupData.hourlyPrice || ''}">
 					</div>
 				</div>
 				<button class="btn-bad" data-gk="remove" type="button" style="margin-top:20px;white-space:nowrap;">🗑 Группу</button>
@@ -353,9 +351,7 @@
 
 			els.configBlock.classList.remove('hidden');
 			els.selectedTitle.textContent = details.name;
-			const typeStr = details.club_type ? ` · ${details.club_type}` : '';
-			const subHint = details.subscription_notice || `Подписка: ${details.subscription_status} (${details.subscription_days_left || 0} дн.)`;
-			els.selectedHint.textContent = `/${details.slug}${typeStr}  —  ${details.local_link} · ${subHint}`;
+			els.selectedHint.textContent = '';
 			setAppliedLinks(details.local_link || '', details.owner_invite_link || '');
 			els.subSelect.value = details.subscription_type || 'monthly';
 			syncSubscriptionInputs();
@@ -538,7 +534,7 @@
 			state.selectedClub = null;
 			els.configBlock.classList.add('hidden');
 			els.selectedTitle.textContent = 'Конфигурация Клуба';
-			els.selectedHint.textContent = 'Выберите клуб слева, чтобы настроить его.';
+			els.selectedHint.textContent = '';
 			await loadClubs();
 			setStatus(`Клуб удалён: ${target.slug}`);
 		} catch (err) {

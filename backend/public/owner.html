@@ -10,8 +10,8 @@
   <div class="shell">
     <div class="topbar">
       <div>
-        <div class="brand">CYBER STACK OWNER</div>
-        <div class="status" id="ownerStatus">Войдите как SUPER_ADMIN</div>
+        <div class="brand">HEGEL</div>
+        <div class="status" id="ownerStatus"></div>
       </div>
       <div class="row">
         <button class="btn-soft" id="refreshBtn" type="button">Обновить</button>
@@ -24,13 +24,12 @@
       <section class="card">
         <h1>Вход Владельца</h1>
         <div class="split-2">
-          <input id="login" type="text" placeholder="Логин">
-          <input id="password" type="password" placeholder="Пароль">
+          <input id="login" type="text">
+          <input id="password" type="password">
         </div>
         <div class="row" style="margin-top:10px;">
           <button class="btn-main" id="loginBtn" type="button">Войти</button>
         </div>
-        <div class="note">Эта панель использует backend API текущего окружения.</div>
       </section>
     </div>
 
@@ -44,15 +43,15 @@
 
           <div class="field-group">
             <label class="field-label">Название клуба</label>
-            <input id="clubName" type="text" placeholder="Atom, EuroClub, Apex...">
+            <input id="clubName" type="text">
           </div>
           <div class="field-group">
             <label class="field-label">Тип клуба</label>
-            <input id="clubType" type="text" placeholder="Кибер-клуб, Lounge, PS-зал...">
+            <input id="clubType" type="text">
           </div>
           <div class="field-group">
             <label class="field-label">URL slug</label>
-            <input id="clubSlug" type="text" placeholder="atom, euro-club...">
+            <input id="clubSlug" type="text">
           </div>
           <div class="field-group">
             <label class="field-label">Подписка при создании</label>
@@ -63,7 +62,7 @@
           </div>
           <div class="field-group" id="trialDaysWrap">
             <label class="field-label">Дней trial</label>
-            <input id="clubTrialDays" type="number" min="1" max="365" value="7" placeholder="7">
+            <input id="clubTrialDays" type="number" min="1" max="365" value="7">
           </div>
           <div class="row" style="margin-bottom:14px;">
             <button class="btn-main" id="createClubBtn" type="button">+ Создать клуб</button>
@@ -80,7 +79,7 @@
           <div class="club-header">
             <div>
               <h2 id="selectedTitle">Конфигурация Клуба</h2>
-              <div class="status" id="selectedHint">Выберите клуб слева, чтобы настроить его.</div>
+              <div class="status" id="selectedHint"></div>
             </div>
           </div>
 
@@ -96,7 +95,7 @@
                 <option value="monthly">monthly</option>
                 <option value="expired">expired</option>
               </select>
-              <input id="renewTrialDays" type="number" min="1" max="365" value="7" placeholder="trial days" style="max-width:120px;">
+              <input id="renewTrialDays" type="number" min="1" max="365" value="7" style="max-width:120px;">
               <button class="btn-warn" id="updateSubBtn" type="button">Продлить подписку</button>
             </div>
 
@@ -113,10 +112,9 @@
                 </div>
                 <div class="field-group" style="max-width:220px;">
                   <label class="field-label">Количество ПК</label>
-                  <input id="pcCount" type="number" min="0" placeholder="0">
+                  <input id="pcCount" type="number" min="0">
                 </div>
               </div>
-              <div class="note">Тарифы для ПК не нужны. Backend создаёт ровно столько ПК, сколько задано — забронировать лишний невозможно.</div>
             </div>
 
             <!-- ███ PS ███ -->
@@ -132,7 +130,7 @@
                 </div>
                 <div class="field-group" style="max-width:220px;">
                   <label class="field-label">Количество PS</label>
-                  <input id="psCount" type="number" min="0" placeholder="0">
+                  <input id="psCount" type="number" min="0">
                 </div>
               </div>
 
@@ -150,7 +148,7 @@
                 </thead>
                 <tbody id="psAssignmentsBody"></tbody>
               </table>
-              <div class="muted" id="psAssignmentsHint" style="margin-top:6px;font-size:0.82rem;">Укажите количество PS выше.</div>
+              <div class="muted" id="psAssignmentsHint" style="margin-top:6px;font-size:0.82rem;"></div>
             </div>
 
             <!-- ███ Ссылка и применение ███ -->
@@ -161,7 +159,7 @@
               <div id="appliedLinksBlock" class="hidden" style="margin-top:10px;">
                 <div class="field-group" style="margin-bottom:10px;">
                   <label class="field-label">Постоянная ссылка клуба</label>
-                  <input id="appliedClubLink" type="text" readonly placeholder="https://your-domain/club/slug">
+                  <input id="appliedClubLink" type="text" readonly>
                   <div class="row" style="margin-top:8px;">
                     <button class="btn-soft" id="copyAppliedClubLinkBtn" type="button">Копировать ссылку клуба</button>
                   </div>
@@ -169,7 +167,7 @@
 
                 <div class="field-group" style="margin-bottom:0;">
                   <label class="field-label">Invite-ссылка владельца</label>
-                  <input id="appliedOwnerInviteLink" type="text" readonly placeholder="https://your-domain/activate-owner?token=...">
+                  <input id="appliedOwnerInviteLink" type="text" readonly>
                   <div class="row" style="margin-top:8px;">
                     <button class="btn-soft" id="copyAppliedOwnerInviteBtn" type="button">Копировать invite владельца</button>
                     <button class="btn-warn" id="regenerateOwnerInviteBtn" type="button">Сгенерировать новую invite-ссылку владельца</button>
@@ -177,7 +175,7 @@
                   </div>
                 </div>
               </div>
-              <div class="note" id="ownerResult" style="margin-top:10px;">Готово.</div>
+              <div class="note" id="ownerResult" style="margin-top:10px;"></div>
             </div>
 
           </div><!-- /configBlock -->
