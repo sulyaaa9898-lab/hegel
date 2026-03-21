@@ -48,6 +48,7 @@
 		copyAppliedClubLinkBtn: document.getElementById('copyAppliedClubLinkBtn'),
 		copyAppliedOwnerInviteBtn: document.getElementById('copyAppliedOwnerInviteBtn'),
 		regenerateOwnerInviteBtn: document.getElementById('regenerateOwnerInviteBtn'),
+		resetOwnerAccessBtn: document.getElementById('resetOwnerAccessBtn'),
 		ownerResult:       document.getElementById('ownerResult'),
 		enableBtn:         document.getElementById('enableBtn'),
 		disableBtn:        document.getElementById('disableBtn'),
@@ -619,6 +620,36 @@
 			});
 			setAppliedLinks(result.club_link || state.selectedClub.local_link || '', result.owner_invite_link || '');
 			setStatus('Новая invite-ссылка создана. Предыдущая ссылка аннулирована.');
+
+			async function resetOwnerAccess() {
+				if (!state.selectedClub) return;
+		
+				const confirmed = confirm(
+					'⚠️ ВНИМАНИЕ!\n\n' +
+					'Это действие полностью сбросит доступ текущего владельца клуба:\n' +
+					'• Старый логин/пароль больше не будут работать\n' +
+					'• Все сессии будут отозваны\n' +
+					'• Старая invite-ссылка станет недействительной\n' +
+					'• Будет сгенерирована новая invite-ссылка\n\n' +
+					'Владелец сможет активировать новый доступ с помощью новой ссылки.\n\n' +
+					'Продолжить?'
+				);
+		
+				if (!confirmed) return;
+		
+				try {
+					setStatus('Выполняю сброс доступа владельца...');
+					const result = await api(`/api/owner/clubs/${state.selectedClub.id}/owner-access/reset`, {
+						method: 'POST',
+						headers: jsonHeaders()
+					});
+			
+					setAppliedLinks(result.club_link || state.selectedClub.local_link || '', result.new_invite_link || '');
+					setStatus('✅ ' + (result.message || 'Доступ владельца успешно сброшен! Новая invite-ссылка создана.'));
+				} catch (err) {
+					setStatus('❌ Ошибка при сбросе доступа: ' + (err.message || 'Неизвестная ошибка'));
+				}
+			}
 		} catch (err) {
 			setStatus(err.message);
 		}
@@ -679,6 +710,7 @@
 		els.copyAppliedClubLinkBtn.addEventListener('click', copyAppliedClubLink);
 		els.copyAppliedOwnerInviteBtn.addEventListener('click', copyAppliedOwnerInvite);
 		els.regenerateOwnerInviteBtn.addEventListener('click', regenerateOwnerInvite);
+		els.resetOwnerAccessBtn.addEventListener('click', resetOwnerAccess);
 		els.enableBtn.addEventListener('click', () => updateEnable(true));
 		els.disableBtn.addEventListener('click', () => updateEnable(false));
 		els.deleteClubBtn.addEventListener('click', deleteSelectedClub);

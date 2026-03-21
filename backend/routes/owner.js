@@ -1045,4 +1045,98 @@ router.delete('/clubs/:id/admins/:adminId', async (req, res, next) => {
   }
 });
 
+router.post('/clubs/:id/owner-access/reset', async (req, res, next) => {
+  try {
+    const db = req.app.locals.db;
+    const clubId = Number(req.params.id);
+    
+    // Verify club exists
+    const club = await dbGet(
+      db,
+      'SELECT id, slug FROM clubs WHERE id = ? AND deleted_at IS NULL LIMIT 1',
+      [clubId]
+    );
+
+    if (!club) {
+      return res.status(404).json({ error: 'Club not found' });
+    }
+
+    const timestamp = nowIso();
+    
+    // Start transaction to ensure all operations succeed or fail together
+    await dbRun(db, 'BEGIN TRANSACTION');
+    try {
+      // 1. Soft-delete existing owner for this club (if exists)
+      const existingOwner = await dbGet(
+        db,
+        `SELECT id FROM admins
+         WHERE club_id = ? AND is_club_owner = 1 AND deleted_at IS NULL
+         LIMIT 1`,
+        [clubId]
+      );
+
+      if (existingOwner) {
+        await dbRun(
+          db,
+          `UPDATE admins SET deleted_at = ? WHERE id = ?`,
+          [timestamp, existingOwner.id]
+        );
+        
+        // 2. Blacklist old owner sessions
+        const oldSessions = await dbAll(
+          db,
+          `SELECT token_hash, expires_at FROM admin_active_sessions WHERE admin_id = ?`,
+          [existingOwner.id]
+        );
+        
+        for (const session of oldSessions) {
+          await dbRun(
+            db,
+            `INSERT INTO token_blacklist (token_hash, admin_id, blacklisted_at, expires_at)
+             VALUES (?, ?, ?, ?)`,
+            [session.token_hash, existingOwner.id, timestamp, session.expires_at]
+          );
+        }
+        
+        // 3. Delete active sessions for this admin
+        await dbRun(
+          db,
+          `DELETE FROM admin_active_sessions WHERE admin_id = ?`,
+          [existingOwner.id]
+        );
+      }
+
+      // 4. Revoke all old owner invite tokens for this club
+      await revokeActiveOwnerInvites(db, clubId);
+
+      // 5. Create new owner invite token
+      const newInvite = await createOwnerInvite(db, clubId, req.auth.adminId);
+      
+      if (!newInvite) {
+        // This should not happen since we deleted the owner, but just in case
+        await dbRun(db, 'ROLLBACK');
+        return res.status(500).json({ error: 'Failed to create new owner invite' });
+      }
+
+      await dbRun(db, 'COMMIT');
+
+      return res.json({
+        success: true,
+        message: 'Owner access has been reset successfully',
+        club_id: clubId,
+        club_slug: club.slug,
+        owner_reset_at: timestamp,
+        new_invite_link: newInvite.invite_link,
+        club_link: buildPublicUrl(`/club/${club.slug}`)
+      });
+
+    } catch (txError) {
+      await dbRun(db, 'ROLLBACK');
+      throw txError;
+    }
+  } catch (error) {
+    return next(error);
+  }
+});
+
 export default router;
