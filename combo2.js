@@ -1788,6 +1788,59 @@ if (!clubContext.slug && info && info.club_slug) {
 clubContext.slug = info.club_slug;
 }
 }
+async function performClubLogin(login, pass, force = false) {
+const authData = await apiRequest('/auth/login', {
+method: 'POST',
+body: JSON.stringify({ login, password: pass, force })
+});
+setAuthToken(authData.token);
+const user = authData.admin;
+if (!user || (user.role !== CLUB_ADMIN_ROLE && user.role !== CLUB_OWNER_ROLE)) {
+clearAuthToken();
+throw new Error(`Вход разрешён только для аккаунтов клуба (получена роль: ${user && user.role ? user.role : 'UNKNOWN'})`);
+}
+if (!clubContext.id) {
+clearAuthToken();
+throw new Error('Не удалось определить клуб по ссылке');
+}
+if (Number(user.club_id) !== Number(clubContext.id)) {
+clearAuthToken();
+throw new Error('Этот аккаунт принадлежит другому клубу');
+}
+currentAdmin = {
+id: user.id,
+login: user.login,
+name: user.name,
+isRoot: !!user.is_root,
+isClubOwner: !!user.is_club_owner,
+clubId: user.club_id,
+role: user.role
+};
+if (authData && authData.subscription) {
+clubContext.subscription = resolveSubscriptionState(authData.subscription);
+}
+clearAuthInlineError();
+storage.saveCurrentAdmin(state);
+saveSessionAdmin(currentAdmin);
+const userName = currentAdmin.isRoot ? ROOT_NAME : user.name;
+document.getElementById('currentUser').textContent = userName;
+document.getElementById('userPanel').style.display = 'flex';
+document.getElementById('adminBtn').style.display = canManageClub() ? 'inline-block' : 'none';
+document.getElementById('statsBtn').style.display = canManageClub() ? 'inline-block' : 'none';
+document.getElementById('logsBtn').style.display = canManageClub() ? 'inline-block' : 'none';
+document.getElementById('authModal').style.display = 'none';
+renderSubscriptionState();
+enforceSubscriptionLock();
+try {
+await syncStateFromBackend();
+} catch (_) {
+}
+renderSubscriptionState();
+enforceSubscriptionLock();
+ensurePreferredPlatform();
+if (currentPlatform === 'ps') renderPSConsoles();
+else renderTable();
+}
 document.getElementById('authBtn').addEventListener('click', async function() {
 const login = document.getElementById('loginInput').value.trim();
 const pass = document.getElementById('passwordInput').value;
@@ -1840,64 +1893,24 @@ document.getElementById('adminName').value = '';
 document.getElementById('passwordMismatch').style.display = 'none';
 } else {
 try {
-const authData = await apiRequest('/auth/login', {
-method: 'POST',
-body: JSON.stringify({ login, password: pass })
-});
-setAuthToken(authData.token);
-const user = authData.admin;
-if (!user || (user.role !== CLUB_ADMIN_ROLE && user.role !== CLUB_OWNER_ROLE)) {
-clearAuthToken();
-throw new Error(`Вход разрешён только для аккаунтов клуба (получена роль: ${user && user.role ? user.role : 'UNKNOWN'})`);
-}
-if (!clubContext.id) {
-clearAuthToken();
-throw new Error('Не удалось определить клуб по ссылке');
-}
-if (Number(user.club_id) !== Number(clubContext.id)) {
-clearAuthToken();
-throw new Error('Этот аккаунт принадлежит другому клубу');
-}
-currentAdmin = {
-id: user.id,
-login: user.login,
-name: user.name,
-isRoot: !!user.is_root,
-isClubOwner: !!user.is_club_owner,
-clubId: user.club_id,
-role: user.role
-};
-if (authData && authData.subscription) {
-clubContext.subscription = resolveSubscriptionState(authData.subscription);
-}
-clearAuthInlineError();
-storage.saveCurrentAdmin(state);
-saveSessionAdmin(currentAdmin);
-const userName = currentAdmin.isRoot ? ROOT_NAME : user.name;
-document.getElementById('currentUser').textContent = userName;
-document.getElementById('userPanel').style.display = 'flex';
-document.getElementById('adminBtn').style.display = canManageClub() ? 'inline-block' : 'none';
-document.getElementById('statsBtn').style.display = canManageClub() ? 'inline-block' : 'none';
-document.getElementById('logsBtn').style.display = canManageClub() ? 'inline-block' : 'none';
-document.getElementById('authModal').style.display = 'none';
-renderSubscriptionState();
-enforceSubscriptionLock();
-try {
-await syncStateFromBackend();
-} catch (_) {
-}
-renderSubscriptionState();
-enforceSubscriptionLock();
-ensurePreferredPlatform();
-if (currentPlatform === 'ps') renderPSConsoles();
-else renderTable();
+await performClubLogin(login, pass, false);
 } catch (err) {
 if (err && err.code === 'ADMIN_SESSION_ACTIVE') {
 showAuthInlineError('В этом клубе уже работает другой администратор. Одновременно может быть только один администратор.');
 return;
 }
 if (err && err.code === 'ADMIN_ALREADY_LOGGED_IN') {
-showAuthInlineError('Этот администратор уже находится в активной сессии. Сначала завершите текущую сессию.');
+uiModule.showConfirm(
+'У этого администратора уже есть активная сессия. Завершить прошлую сессию и войти здесь?',
+async () => {
+	try {
+		await performClubLogin(login, pass, true);
+	} catch (forceErr) {
+		showAuthInlineError(forceErr.message || 'Не удалось завершить прошлую сессию и войти.');
+	}
+},
+'Активная сессия'
+);
 return;
 }
 showAuthInlineError(err.message || 'Неверный логин или пароль');

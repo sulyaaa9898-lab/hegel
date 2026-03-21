@@ -105,6 +105,7 @@ router.post('/register', async (req, res, next) => {
 router.post('/login', async (req, res, next) => {
   try {
     const { login, password } = req.body || {};
+    const forceLogin = req.body?.force === true;
 
     if (!login || !password) {
       return res.status(400).json({ error: 'login and password are required' });
@@ -182,10 +183,18 @@ router.post('/login', async (req, res, next) => {
       const activeSession = await ensureNoActiveClubAdminSession(db, admin.club_id);
       if (activeSession) {
         if (Number(activeSession.admin_id) === Number(admin.id)) {
-          return res.status(409).json({
-            error: 'Этот администратор уже находится в активной сессии. Сначала завершите текущую сессию.',
-            code: 'ADMIN_ALREADY_LOGGED_IN'
-          });
+          if (!forceLogin) {
+            return res.status(409).json({
+              error: 'Этот администратор уже находится в активной сессии. Сначала завершите текущую сессию.',
+              code: 'ADMIN_ALREADY_LOGGED_IN'
+            });
+          }
+
+          await dbRun(
+            db,
+            'DELETE FROM admin_active_sessions WHERE club_id = ? AND admin_id = ?',
+            [admin.club_id, admin.id]
+          );
         } else {
           return res.status(409).json({
             error: 'В этом клубе уже работает другой администратор. Одновременно может быть только один администратор.',
