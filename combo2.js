@@ -2199,6 +2199,11 @@ if (!group) return 0;
 const hourlyPrice = Number(group.hourly_price);
 return Number.isFinite(hourlyPrice) && hourlyPrice > 0 ? hourlyPrice : 0;
 }
+function roundCostToNearestFive(value) {
+const amount = Number(value || 0);
+if (!Number.isFinite(amount) || amount <= 0) return 0;
+return Math.round(amount / 5) * 5;
+}
 async function refreshPSRuntimeConfig() {
 const clubConfig = await apiRequest('/club/config');
 if (!clubConfig || !Array.isArray(clubConfig.ps_consoles)) {
@@ -2277,15 +2282,17 @@ actionDiv.appendChild(editBtn);
 actionDiv.appendChild(deleteBtn);
 actionDiv.appendChild(startBtn);
 } else if (ps.status === 'active' || ps.status === 'warning') {
-const addBtn = document.createElement('button');
-addBtn.className = 'ps-btn';
-addBtn.textContent = '+Время';
-addBtn.onclick = () => openPSAddTime(ps.id);
 const endBtn = document.createElement('button');
 endBtn.className = 'ps-btn ps-btn-danger';
 endBtn.textContent = 'Завершить';
 endBtn.onclick = () => openPSEndSession(ps.id);
+if (!ps.isFreeTime) {
+const addBtn = document.createElement('button');
+addBtn.className = 'ps-btn';
+addBtn.textContent = '+Время';
+addBtn.onclick = () => openPSAddTime(ps.id);
 actionDiv.appendChild(addBtn);
+}
 actionDiv.appendChild(endBtn);
 } else if (ps.status === 'expired') {
 const openTimeBtn = document.createElement('button');
@@ -2479,6 +2486,60 @@ document.getElementById('psHours').addEventListener('input', updatePSManualCost)
 document.getElementById('psMinutes').addEventListener('input', updatePSManualCost);
 document.getElementById('psManualModal').style.display = 'flex';
 }
+async function openPSMinuteBilling() {
+closePSChoiceModal();
+
+try {
+await refreshPSRuntimeConfig();
+} catch (error) {
+notify(error.message || 'Не удалось загрузить конфигурацию PS', 'Ошибка');
+return;
+}
+
+const ps = psConsoles[currentPSID - 1];
+if (!ps) {
+notify('PS не найдена', 'Ошибка');
+return;
+}
+
+const tariff = getPSTariff(currentPSID);
+if (tariff <= 0) {
+notify('Для этой PS не настроен почасовой тариф', 'Ошибка');
+return;
+}
+
+const bookingId = ps.booking && ps.booking.id ? ps.booking.id : null;
+const snapshot = JSON.parse(JSON.stringify(ps));
+
+ps.status = 'active';
+ps.startTime = Date.now();
+ps.prepaid = 0;
+ps.remaining = 0;
+ps.totalPaid = 0;
+ps.selectedPackage = 'Поминутка';
+ps.addedTime = 0;
+ps.isFreeTime = true;
+ps.booking = null;
+
+savePSState();
+renderPSConsoles();
+
+apiRequest(`/ps/consoles/${currentPSID}/session`, {
+method: 'POST',
+body: JSON.stringify({
+booking_id: bookingId,
+prepaid_minutes: 0,
+total_paid: 0,
+selected_package: 'Поминутка',
+is_free_time: true
+})
+}).then(() => syncStateFromBackend()).catch((error) => {
+Object.assign(ps, snapshot);
+savePSState();
+renderPSConsoles();
+notify(error.message || 'Ошибка синхронизации PS с сервером', 'Ошибка');
+});
+}
 function closePSManualModal() {
 document.getElementById('psManualModal').style.display = 'none';
 }
@@ -2487,7 +2548,7 @@ const hours = parseInt(document.getElementById('psHours').value) || 0;
 const minutes = parseInt(document.getElementById('psMinutes').value) || 0;
 const totalMin = hours * 60 + minutes;
 const tariff = getPSTariff(currentPSID);
-const cost = Math.round((totalMin / 60) * tariff);
+const cost = roundCostToNearestFive((totalMin / 60) * tariff);
 document.getElementById('psCostDisplay').textContent = cost;
 }
 function confirmPSManual() {
@@ -2503,7 +2564,7 @@ if (tariff <= 0) {
 notify('Для этой PS не настроен почасовой тариф', 'Ошибка');
 return;
 }
-const cost = Math.round((totalMin / 60) * tariff);
+const cost = roundCostToNearestFive((totalMin / 60) * tariff);
 const label = hours > 0 ? `${hours}ч${minutes > 0 ? ' ' + minutes + 'м' : ''}` : `${minutes}м`;
 applyPSPackage(totalMin, cost, label);
 closePSManualModal();
@@ -2556,7 +2617,7 @@ updatePSAddCost();
 function updatePSAddCost() {
 const minutes = parseInt(document.getElementById('psAddMinutes').value) || 0;
 const tariff = getPSTariff(currentPSID);
-const cost = Math.round((minutes / 60) * tariff);
+const cost = roundCostToNearestFive((minutes / 60) * tariff);
 document.getElementById('psAddCostDisplay').textContent = cost;
 }
 function confirmPSAdd() {
@@ -2571,7 +2632,7 @@ if (tariff <= 0) {
 notify('Для этой PS не настроен почасовой тариф', 'Ошибка');
 return;
 }
-const cost = Math.round((minutes / 60) * tariff);
+const cost = roundCostToNearestFive((minutes / 60) * tariff);
 ps.totalPaid += cost;
 ps.prepaid += minutes;
 ps.remaining += minutes;
@@ -2859,9 +2920,9 @@ currentPSID = psID;
 const ps = psConsoles[psID - 1];
 document.getElementById('psEndNum').textContent = psID;
 if (ps.isFreeTime) {
-const elapsed = (Date.now() - ps.startTime) / 60000; 
+const elapsed = (Date.now() - ps.startTime) / 60000;
 const tariff = getPSTariff(psID);
-const cost = Math.round(elapsed * tariff);
+const cost = roundCostToNearestFive((elapsed / 60) * tariff);
 ps.totalPaid = cost;
 }
 document.getElementById('psTotalCost').textContent = ps.totalPaid;
@@ -2872,7 +2933,12 @@ document.getElementById('psEndSessionModal').style.display = 'none';
 }
 function confirmPSEnd() {
 const ps = psConsoles[currentPSID - 1];
-const finalCost = ps.totalPaid;
+let finalCost = ps.totalPaid;
+if (ps.isFreeTime) {
+const elapsed = (Date.now() - ps.startTime) / 60000;
+const tariff = getPSTariff(currentPSID);
+finalCost = roundCostToNearestFive((elapsed / 60) * tariff);
+}
 ps.status = 'idle';
 ps.prepaid = 0;
 ps.remaining = 0;
