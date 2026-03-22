@@ -1726,7 +1726,7 @@ document.getElementById('currentUser').textContent = userName;
 document.getElementById('userPanel').style.display = 'flex';
 document.getElementById('adminBtn').style.display = canManageClub() ? 'inline-block' : 'none';
 document.getElementById('statsBtn').style.display = canManageClub() ? 'inline-block' : 'none';
-document.getElementById('logsBtn').style.display = canManageClub() ? 'inline-block' : 'none';
+document.getElementById('logsBtn').style.display = isClubOwner() ? 'inline-block' : 'none';
 document.getElementById('authModal').style.display = 'none';
 renderSubscriptionState();
 } catch (e) {
@@ -1829,7 +1829,7 @@ document.getElementById('currentUser').textContent = userName;
 document.getElementById('userPanel').style.display = 'flex';
 document.getElementById('adminBtn').style.display = canManageClub() ? 'inline-block' : 'none';
 document.getElementById('statsBtn').style.display = canManageClub() ? 'inline-block' : 'none';
-document.getElementById('logsBtn').style.display = canManageClub() ? 'inline-block' : 'none';
+document.getElementById('logsBtn').style.display = isClubOwner() ? 'inline-block' : 'none';
 document.getElementById('authModal').style.display = 'none';
 renderSubscriptionState();
 enforceSubscriptionLock();
@@ -2134,8 +2134,224 @@ document.getElementById('ownerStatsModal').style.display = 'flex';
 function closeOwnerStatsModal() {
 document.getElementById('ownerStatsModal').style.display = 'none';
 }
+const ACTION_LABELS = {
+LOGIN: 'Вход в систему',
+LOGOUT: 'Выход',
+CREATE_BOOKING_PC: 'Создание брони ПК',
+UPDATE_BOOKING_PC: 'Изменение брони ПК',
+DELETE_BOOKING_PC: 'Удаление брони ПК',
+MARK_ARRIVED: 'Клиент пришёл',
+MARK_LATE: 'Клиент опаздывает',
+MARK_CANCELLED: 'Бронь отменена',
+MARK_NO_SHOW: 'Клиент не пришёл',
+CREATE_BOOKING_PS: 'Создание брони PS',
+UPDATE_BOOKING_PS: 'Изменение брони PS',
+DELETE_BOOKING_PS: 'Удаление брони PS',
+PS_SESSION_START: 'Старт PS-сессии',
+PS_SESSION_END: 'Завершение PS-сессии',
+PS_ADD_TIME: 'Добавление времени PS',
+CREATE_ADMIN: 'Добавление админа',
+DELETE_ADMIN: 'Удаление админа',
+PASSWORD_CHANGE: 'Смена пароля'
+};
+const ACTION_CATEGORY = {
+LOGIN: 'neutral', LOGOUT: 'neutral',
+CREATE_BOOKING_PC: 'create', UPDATE_BOOKING_PC: 'update', DELETE_BOOKING_PC: 'delete',
+MARK_ARRIVED: 'success', MARK_LATE: 'warning', MARK_CANCELLED: 'warning', MARK_NO_SHOW: 'danger',
+CREATE_BOOKING_PS: 'create', UPDATE_BOOKING_PS: 'update', DELETE_BOOKING_PS: 'delete',
+PS_SESSION_START: 'create', PS_SESSION_END: 'success', PS_ADD_TIME: 'update',
+CREATE_ADMIN: 'create', DELETE_ADMIN: 'delete', PASSWORD_CHANGE: 'warning'
+};
+const AUDIT_LOGS_LIMIT = 50;
+let auditLogsOffset = 0;
+let auditAccountsLoaded = false;
+function escapeHtml(str) {
+return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+async function showLogsPage() {
+if (!isClubOwner()) {
+notify('❌ Только владелец клуба может просматривать логи', 'Ошибка');
+return;
+}
+document.getElementById('dashboardSection').style.display = 'none';
+document.getElementById('bookingsSection').style.display = 'none';
+document.getElementById('logsSection').style.display = 'flex';
+document.querySelectorAll('.nav-item').forEach(function(el) { el.classList.remove('active'); });
+document.getElementById('logsBtn').classList.add('active');
+auditLogsOffset = 0;
+if (!auditAccountsLoaded) {
+await loadAuditAccountsFilter();
+}
+loadAuditLogs();
+}
+
+async function loadAuditAccountsFilter() {
+if (!isClubOwner()) return;
+const select = document.getElementById('auditFilterAccount');
+if (!select) return;
+try {
+	const listFromApi = await apiRequest('/admins');
+	const currentValue = select.value || '';
+	select.innerHTML = '<option value="">Все аккаунты</option>';
+	listFromApi.forEach(function(admin) {
+		const option = document.createElement('option');
+		option.value = String(admin.id);
+		option.textContent = admin.name || admin.login || ('ID ' + admin.id);
+		select.appendChild(option);
+	});
+	select.value = currentValue;
+	auditAccountsLoaded = true;
+} catch (error) {
+	auditAccountsLoaded = false;
+}
+}
+
+function toAuditIso(value) {
+if (!value) return '';
+const parsed = new Date(value);
+if (Number.isNaN(parsed.getTime())) return '';
+return parsed.toISOString();
+}
+
+function getAuditFilters() {
+const action = document.getElementById('auditFilterAction').value;
+const account = document.getElementById('auditFilterAccount').value;
+const from = document.getElementById('auditFilterFrom').value;
+const to = document.getElementById('auditFilterTo').value;
+const params = new URLSearchParams();
+if (action) params.set('action', action);
+if (account) params.set('admin_id', account);
+const fromIso = toAuditIso(from);
+const toIso = toAuditIso(to);
+if (fromIso) params.set('from', fromIso);
+if (toIso) params.set('to', toIso);
+params.set('limit', String(AUDIT_LOGS_LIMIT));
+params.set('offset', String(auditLogsOffset));
+return params;
+}
+function formatAuditDetails(action, before, after) {
+const data = after || before;
+if (!data) return '—';
+switch (action) {
+case 'CREATE_BOOKING_PC':
+case 'UPDATE_BOOKING_PC':
+case 'DELETE_BOOKING_PC':
+case 'MARK_ARRIVED':
+case 'MARK_LATE':
+case 'MARK_CANCELLED':
+case 'MARK_NO_SHOW': {
+const name = data.name || data.guest_name || '';
+const pc = data.pc || '';
+const time = data.time || '';
+const parts = [];
+if (name) parts.push(name);
+if (pc) parts.push('ПК ' + pc);
+if (time) parts.push(time);
+if (action.startsWith('MARK_') && before && after && before.status && after.status) {
+parts.push(before.status + ' → ' + after.status);
+}
+return parts.join(' · ') || '—';
+}
+case 'CREATE_BOOKING_PS':
+case 'UPDATE_BOOKING_PS':
+case 'DELETE_BOOKING_PS': {
+const name = data.name || data.client_name || '';
+const ps = data.ps_id || data.console_id || '';
+const parts = [];
+if (name) parts.push(name);
+if (ps) parts.push('PS-' + String(ps).padStart(2, '0'));
+return parts.join(' · ') || '—';
+}
+case 'PS_SESSION_START': {
+const ps = data.ps_id || '';
+const pkg = data.selected_package || '';
+const parts = [];
+if (ps) parts.push('PS-' + String(ps).padStart(2, '0'));
+if (pkg) parts.push(pkg);
+return parts.join(' · ') || '—';
+}
+case 'PS_SESSION_END': {
+const ps = data.ps_id || '';
+const cost = data.total_paid;
+const parts = [];
+if (ps) parts.push('PS-' + String(ps).padStart(2, '0'));
+if (cost !== undefined && cost !== null) parts.push(cost + ' ₸');
+return parts.join(' · ') || '—';
+}
+case 'PS_ADD_TIME': {
+const ps = data.ps_id || '';
+const added = data.added_time || data.added_minutes || '';
+const parts = [];
+if (ps) parts.push('PS-' + String(ps).padStart(2, '0'));
+if (added) parts.push('+' + added + ' мин');
+return parts.join(' · ') || '—';
+}
+case 'CREATE_ADMIN':
+case 'DELETE_ADMIN': {
+const login = data.login || '';
+const name2 = data.name || '';
+return [name2, login ? '(' + login + ')' : ''].filter(Boolean).join(' ') || '—';
+}
+case 'PASSWORD_CHANGE':
+return data.login ? 'Логин: ' + data.login : '—';
+default:
+return '—';
+}
+}
+async function loadAuditLogs(loadMore) {
+if (!isClubOwner()) return;
+if (!loadMore) auditLogsOffset = 0;
+const tbody = document.getElementById('auditTableBody');
+const emptyState = document.getElementById('auditEmptyState');
+const loadMoreBtn = document.getElementById('auditLoadMore');
+if (!loadMore) {
+tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:24px;opacity:0.5;">Загрузка…</td></tr>';
+emptyState.style.display = 'none';
+loadMoreBtn.style.display = 'none';
+}
+try {
+const params = getAuditFilters();
+const data = await apiRequest('/audit/logs?' + params.toString());
+const logs = data.logs || [];
+if (!loadMore) tbody.innerHTML = '';
+if (logs.length === 0 && !loadMore) {
+emptyState.style.display = 'block';
+loadMoreBtn.style.display = 'none';
+return;
+}
+logs.forEach(function(log) {
+const tr = document.createElement('tr');
+const category = ACTION_CATEGORY[log.action] || 'neutral';
+const label = ACTION_LABELS[log.action] || log.action;
+const details = formatAuditDetails(log.action, log.before, log.after);
+const date = new Date(log.timestamp);
+const dateStr = date.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+tr.innerHTML =
+'<td class="audit-cell-time">' + escapeHtml(dateStr) + '</td>' +
+'<td class="audit-cell-who">' + escapeHtml(log.admin_name || log.admin_login || '—') + '</td>' +
+'<td><span class="audit-badge audit-badge--' + category + '">' + escapeHtml(label) + '</span></td>' +
+'<td class="audit-cell-details">' + escapeHtml(details) + '</td>';
+tbody.appendChild(tr);
+});
+auditLogsOffset += logs.length;
+loadMoreBtn.style.display = logs.length === AUDIT_LOGS_LIMIT ? 'block' : 'none';
+} catch (err) {
+if (!loadMore) {
+tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:#f87171;">' + escapeHtml(err.message || 'Ошибка загрузки') + '</td></tr>';
+}
+notify(err.message || 'Ошибка загрузки логов', 'Ошибка');
+}
+}
+function resetAuditFilters() {
+document.getElementById('auditFilterAction').value = '';
+document.getElementById('auditFilterAccount').value = '';
+document.getElementById('auditFilterFrom').value = '';
+document.getElementById('auditFilterTo').value = '';
+auditLogsOffset = 0;
+loadAuditLogs();
+}
 async function downloadAuditLogs() {
-if (!canManageClub()) {
+if (!isClubOwner()) {
 notify('❌ Только владелец клуба может скачивать логи', 'Ошибка');
 return;
 }
@@ -2158,7 +2374,7 @@ const blob = await response.blob();
 const url = window.URL.createObjectURL(blob);
 const link = document.createElement('a');
 link.href = url;
-link.download = `${clubContext.slug || 'club'}-audit-${new Date().toISOString().slice(0, 10)}.csv`;
+link.download = `${clubContext.slug || 'club'}-audit-${new Date().toISOString().slice(0, 10)}.xlsx`;
 document.body.appendChild(link);
 link.click();
 link.remove();
@@ -3123,7 +3339,7 @@ saveSessionAdmin(currentAdmin);
 if (document.getElementById('adminBtn')) {
 document.getElementById('adminBtn').style.display = canManageClub() ? 'inline-block' : 'none';
 document.getElementById('statsBtn').style.display = canManageClub() ? 'inline-block' : 'none';
-document.getElementById('logsBtn').style.display = canManageClub() ? 'inline-block' : 'none';
+document.getElementById('logsBtn').style.display = isClubOwner() ? 'inline-block' : 'none';
 }
 }
 renderSubscriptionState();

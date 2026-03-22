@@ -4,7 +4,7 @@ import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
-import { initializeDatabase, closeDatabase, dbRun } from './db.js';
+import { initializeDatabase, closeDatabase, dbRun, scheduleAuditLogCleanup } from './db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
@@ -141,6 +141,9 @@ async function start() {
     const db = await initializeDatabase();
 
     app.locals.db = db;
+    
+    // Schedule daily audit log cleanup
+    scheduleAuditLogCleanup(db);
 
     const server = app.listen(PORT, HOST);
     console.log(`Server running on http://${HOST}:${PORT}`);

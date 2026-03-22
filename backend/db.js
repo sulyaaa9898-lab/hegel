@@ -427,8 +427,47 @@ async function runMigrations(db) {
   await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_ps_sessions_club_id ON ps_sessions(club_id)');
   await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_guest_ratings_club_id ON guest_ratings(club_id)');
   await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_audit_logs_club_id ON audit_logs(club_id)');
+  await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_audit_logs_club_timestamp ON audit_logs(club_id, timestamp)');
   await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_token_blacklist_club_id ON token_blacklist(club_id)');
   await ensureColumn(db, 'admins', 'token_version', 'INTEGER NOT NULL DEFAULT 0');
+}
+
+/**
+ * Clean up old audit logs (keep last 6 months)
+ */
+async function cleanupOldAuditLogs(db) {
+  try {
+    const result = await dbRun(
+      db,
+      `DELETE FROM audit_logs WHERE timestamp < datetime('now', '-6 months')`
+    );
+    if (result.changes > 0) {
+      console.log(`🧹 Cleaned up ${result.changes} old audit logs (older than 6 months)`);
+    }
+  } catch (err) {
+    console.error('Error cleaning up audit logs:', err.message);
+  }
+}
+
+/**
+ * Schedule daily audit log cleanup (runs at midnight every day)
+ */
+export function scheduleAuditLogCleanup(db) {
+  // Calculate milliseconds until next midnight
+  const now = new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(0, 0, 0, 0);
+  const msUntilMidnight = tomorrow - now;
+
+  // Run cleanup at midnight
+  setTimeout(() => {
+    cleanupOldAuditLogs(db);
+    // Then repeat every 24 hours
+    setInterval(() => cleanupOldAuditLogs(db), 24 * 60 * 60 * 1000);
+  }, msUntilMidnight);
+
+  console.log(`⏰ Audit log cleanup scheduled for 00:00 daily`);
 }
 
 async function tableReferencesAdminsOld(db, tableName) {

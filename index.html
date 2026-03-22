@@ -50,6 +50,7 @@
            this.classList.add('active');
            document.getElementById('dashboardSection').style.display='flex';
            document.getElementById('bookingsSection').style.display='none';
+           document.getElementById('logsSection').style.display='none';
            if(window.refreshDashboard) window.refreshDashboard();
            return false;
          ">
@@ -70,6 +71,7 @@
            this.classList.add('active');
            document.getElementById('dashboardSection').style.display='none';
            document.getElementById('bookingsSection').style.display='flex';
+           document.getElementById('logsSection').style.display='none';
            switchPlatform('pc');
            return false;
          ">
@@ -89,6 +91,7 @@
            this.classList.add('active');
            document.getElementById('dashboardSection').style.display='none';
            document.getElementById('bookingsSection').style.display='flex';
+           document.getElementById('logsSection').style.display='none';
            switchPlatform('ps');
            return false;
          ">
@@ -107,6 +110,7 @@
            this.classList.add('active');
            document.getElementById('dashboardSection').style.display='none';
            document.getElementById('bookingsSection').style.display='flex';
+           document.getElementById('logsSection').style.display='none';
            switchPlatform('pc');
            showGuestsPage();
            return false;
@@ -148,7 +152,7 @@
       </button>
 
       <button id="logsBtn" class="nav-item" type="button" style="display:none;"
-              onclick="downloadAuditLogs();">
+              onclick="showLogsPage();">
         <span class="nav-icon">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
             <rect x="2" y="1" width="10" height="12" rx="1.5" stroke="currentColor" stroke-width="1.2" fill="none"/>
@@ -379,6 +383,84 @@
           </div>
         </div>
 
+      </div>
+
+      <div id="logsSection" style="display:none; flex-direction:column; gap:24px;">
+        <div class="dashboard-heading" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h2>Журнал действий</h2>
+            <span class="dashboard-sub">Все действия администраторов клуба</span>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button type="button" onclick="loadAuditLogs()">Обновить</button>
+            <button type="button" onclick="downloadAuditLogs()">Скачать CSV</button>
+          </div>
+        </div>
+        <div class="section-card">
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+            <div>
+              <div class="audit-filter-label">Действие</div>
+              <select id="auditFilterAction" onchange="loadAuditLogs()">
+                <option value="">Все действия</option>
+                <option value="LOGIN">Вход в систему</option>
+                <option value="LOGOUT">Выход</option>
+                <option value="CREATE_BOOKING_PC">Создание брони ПК</option>
+                <option value="UPDATE_BOOKING_PC">Изменение брони ПК</option>
+                <option value="DELETE_BOOKING_PC">Удаление брони ПК</option>
+                <option value="MARK_ARRIVED">Клиент пришёл</option>
+                <option value="MARK_LATE">Клиент опаздывает</option>
+                <option value="MARK_CANCELLED">Бронь отменена</option>
+                <option value="MARK_NO_SHOW">Клиент не пришёл</option>
+                <option value="CREATE_BOOKING_PS">Создание брони PS</option>
+                <option value="UPDATE_BOOKING_PS">Изменение брони PS</option>
+                <option value="DELETE_BOOKING_PS">Удаление брони PS</option>
+                <option value="PS_SESSION_START">Старт PS-сессии</option>
+                <option value="PS_SESSION_END">Завершение PS-сессии</option>
+                <option value="PS_ADD_TIME">Добавление времени PS</option>
+                <option value="CREATE_ADMIN">Добавление админа</option>
+                <option value="DELETE_ADMIN">Удаление админа</option>
+                <option value="PASSWORD_CHANGE">Смена пароля</option>
+              </select>
+            </div>
+            <div>
+              <div class="audit-filter-label">Аккаунт</div>
+              <select id="auditFilterAccount" onchange="loadAuditLogs()">
+                <option value="">Все аккаунты</option>
+              </select>
+            </div>
+            <div>
+              <div class="audit-filter-label">С даты</div>
+              <input type="datetime-local" id="auditFilterFrom" onchange="loadAuditLogs()">
+            </div>
+            <div>
+              <div class="audit-filter-label">По дату</div>
+              <input type="datetime-local" id="auditFilterTo" onchange="loadAuditLogs()">
+            </div>
+            <div style="display:flex;gap:8px;align-items:flex-end;">
+              <button type="button" onclick="loadAuditLogs()">Применить</button>
+              <button type="button" onclick="resetAuditFilters()">Сбросить</button>
+            </div>
+          </div>
+        </div>
+        <div class="section-card" style="padding:0;overflow:hidden;">
+          <div style="overflow-x:auto;max-height:60vh;overflow-y:auto;">
+            <table class="audit-table">
+              <thead>
+                <tr>
+                  <th>Дата и время</th>
+                  <th>Аккаунт</th>
+                  <th>Действие</th>
+                  <th>Подробности</th>
+                </tr>
+              </thead>
+              <tbody id="auditTableBody"></tbody>
+            </table>
+          </div>
+          <div id="auditEmptyState" class="audit-empty" style="display:none;">Нет записей</div>
+          <div id="auditLoadMore" style="display:none;text-align:center;padding:14px;">
+            <button type="button" onclick="loadAuditLogs(true)">Загрузить ещё</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>

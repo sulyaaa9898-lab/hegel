@@ -1636,3 +1636,77 @@ select:focus,
 .subscription-block-modal .modal-content {
   border: 1px solid rgba(239, 68, 68, 0.55);
 }
+
+/* ===================================================
+   AUDIT LOGS PAGE
+   =============================================== */
+
+.audit-filter-label {
+  font-size: 0.75rem;
+  color: var(--c-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+.audit-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+.audit-table thead th {
+  padding: 12px 14px;
+  text-align: left;
+  font-size: 0.75rem;
+  color: var(--c-text);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  border-bottom: 2px solid var(--c-border);
+  white-space: nowrap;
+  background: rgba(255,255,255,0.04);
+}
+.audit-table tbody td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--c-border-soft);
+  vertical-align: middle;
+  text-align: left;
+}
+.audit-table tbody tr:last-child td { border-bottom: none; }
+.audit-table tbody tr:hover td { background: rgba(255,255,255,0.02); }
+.audit-cell-time {
+  white-space: nowrap;
+  color: var(--c-text-muted);
+  font-size: 0.8rem;
+  min-width: 130px;
+}
+.audit-cell-who {
+  font-weight: 600;
+  color: var(--c-text);
+  min-width: 90px;
+}
+.audit-cell-details {
+  color: var(--c-text-soft);
+  max-width: 260px;
+}
+.audit-badge {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.audit-badge--create  { background: rgba(60,215,164,0.15);  color: #3cd7a4; }
+.audit-badge--success { background: rgba(60,215,164,0.12);  color: #3cd7a4; }
+.audit-badge--update  { background: rgba(124,108,255,0.18); color: #a89bff; }
+.audit-badge--delete  { background: rgba(248,113,113,0.15); color: #f87171; }
+.audit-badge--danger  { background: rgba(248,113,113,0.15); color: #f87171; }
+.audit-badge--warning { background: rgba(251,191,36,0.15);  color: #fbbf24; }
+.audit-badge--neutral { background: rgba(164,172,201,0.12); color: var(--c-text-muted); }
+.audit-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--c-text-muted);
+  font-size: 0.9rem;
+}
