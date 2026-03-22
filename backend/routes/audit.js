@@ -39,6 +39,11 @@ function parseJsonSafe(value) {
 function formatAuditDetails(action, before, after) {
   const data = after || before;
   if (!data) return '—';
+  const hasPrepay = (value) => {
+    if (value === null || value === undefined) return false;
+    const normalized = String(value).trim().toLowerCase();
+    return normalized !== '' && normalized !== 'нет' && normalized !== '0' && normalized !== 'false';
+  };
   switch (action) {
     case 'CREATE_BOOKING_PC':
     case 'UPDATE_BOOKING_PC':
@@ -50,10 +55,12 @@ function formatAuditDetails(action, before, after) {
       const name = data.name || data.guest_name || '';
       const pc = data.pc || '';
       const time = data.time || '';
+      const prepay = data.prepay || data.prepayment || data.prepaid_amount || '';
       const parts = [];
       if (name) parts.push(name);
       if (pc) parts.push('ПК ' + pc);
       if (time) parts.push(time);
+      if (hasPrepay(prepay)) parts.push('Предоплата: ' + prepay + ' ₸');
       if (action.startsWith('MARK_') && before && after && before.status && after.status) {
         parts.push(before.status + ' → ' + after.status);
       }
@@ -64,9 +71,11 @@ function formatAuditDetails(action, before, after) {
     case 'DELETE_BOOKING_PS': {
       const name = data.name || data.client_name || '';
       const ps = data.ps_id || data.console_id || '';
+      const prepay = data.prepay || data.prepayment || data.prepaid_amount || '';
       const parts = [];
       if (name) parts.push(name);
       if (ps) parts.push('PS-' + String(ps).padStart(2, '0'));
+      if (hasPrepay(prepay)) parts.push('Предоплата: ' + prepay + ' ₸');
       return parts.join(' · ') || '—';
     }
     case 'PS_SESSION_START': {
