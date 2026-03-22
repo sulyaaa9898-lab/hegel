@@ -2070,9 +2070,39 @@ const input = document.getElementById('adminInviteLink');
 const value = input ? String(input.value || '').trim() : '';
 if (!value) return;
 
+const copyFallback = function(text) {
+const textarea = document.createElement('textarea');
+textarea.value = text;
+textarea.setAttribute('readonly', 'readonly');
+textarea.style.position = 'fixed';
+textarea.style.opacity = '0';
+textarea.style.pointerEvents = 'none';
+document.body.appendChild(textarea);
+textarea.select();
+textarea.setSelectionRange(0, textarea.value.length);
+let copied = false;
+try {
+copied = document.execCommand('copy');
+} catch (e) {
+copied = false;
+}
+document.body.removeChild(textarea);
+return copied;
+};
+
+const canUseClipboardApi = window.isSecureContext && navigator.clipboard && typeof navigator.clipboard.writeText === 'function';
+if (canUseClipboardApi) {
 navigator.clipboard.writeText(value)
 .then(() => notify('✅ Invite ссылка скопирована', 'Успешно'))
-.catch(() => notify('Не удалось скопировать invite ссылку', 'Ошибка'));
+.catch(() => {
+const ok = copyFallback(value);
+notify(ok ? '✅ Invite ссылка скопирована' : 'Не удалось скопировать invite ссылку', ok ? 'Успешно' : 'Ошибка');
+});
+return;
+}
+
+const ok = copyFallback(value);
+notify(ok ? '✅ Invite ссылка скопирована' : 'Не удалось скопировать invite ссылку', ok ? 'Успешно' : 'Ошибка');
 }
 function buildOwnerStats() {
 const totalGuests = Object.keys(guestRatings || {}).length;
