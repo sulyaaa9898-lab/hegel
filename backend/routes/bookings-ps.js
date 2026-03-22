@@ -1,4 +1,5 @@
 import express from 'express';
+import { randomBytes } from 'crypto';
 import { dbAll, dbGet, dbRun } from '../db.js';
 import { requireAuth } from '../middleware/auth.js';
 import { requireClubContext } from '../middleware/tenant.js';
@@ -8,8 +9,12 @@ const router = express.Router();
 const VALID_STATUS = new Set(['booked', 'started', 'completed']);
 
 function mapBooking(row) {
+  const bookingUid = row.booking_uid && String(row.booking_uid).trim()
+    ? String(row.booking_uid).trim()
+    : null;
   return {
     id: row.id,
+    booking_uid: bookingUid,
     admin_id: row.admin_id,
     ps_id: row.ps_id,
     name: row.name,
@@ -22,6 +27,23 @@ function mapBooking(row) {
     updated_at: row.updated_at,
     deleted_at: row.deleted_at
   };
+}
+
+function createBookingUid(prefix) {
+  return `${prefix}-${randomBytes(2).toString('hex')}@${randomBytes(2).toString('hex')}`.toUpperCase();
+}
+
+async function generateUniqueBookingUid(db, clubId) {
+  for (let i = 0; i < 10; i += 1) {
+    const uid = createBookingUid('PS');
+    const found = await dbGet(
+      db,
+      'SELECT id FROM bookings_ps WHERE club_id = ? AND booking_uid = ? LIMIT 1',
+      [clubId, uid]
+    );
+    if (!found) return uid;
+  }
+  return `PS-${Date.now().toString(36)}@${randomBytes(2).toString('hex')}`.toUpperCase();
 }
 
 async function writeAudit(db, payload) {
@@ -146,6 +168,15 @@ router.post('/', async (req, res, next) => {
         status, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'booked', ?, ?)` ,
       [req.club.id, req.auth.adminId, psId, name, phone, time, dateValue, dateDisplay, createdAt, createdAt]
+    );
+
+    const bookingUid = await generateUniqueBookingUid(db, req.club.id);
+    await dbRun(
+      db,
+      `UPDATE bookings_ps
+       SET booking_uid = COALESCE(NULLIF(booking_uid, ''), ?)
+       WHERE id = ? AND club_id = ?`,
+      [bookingUid, inserted.id, req.club.id]
     );
 
     const created = await dbGet(db, 'SELECT * FROM bookings_ps WHERE id = ? AND club_id = ?', [inserted.id, req.club.id]);

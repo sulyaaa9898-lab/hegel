@@ -51,6 +51,8 @@
            document.getElementById('dashboardSection').style.display='flex';
            document.getElementById('bookingsSection').style.display='none';
            document.getElementById('logsSection').style.display='none';
+           document.getElementById('bookingHistorySection').style.display='none';
+           document.getElementById('customerHistorySection').style.display='none';
            if(window.refreshDashboard) window.refreshDashboard();
            return false;
          ">
@@ -72,6 +74,8 @@
            document.getElementById('dashboardSection').style.display='none';
            document.getElementById('bookingsSection').style.display='flex';
            document.getElementById('logsSection').style.display='none';
+           document.getElementById('bookingHistorySection').style.display='none';
+           document.getElementById('customerHistorySection').style.display='none';
            switchPlatform('pc');
            return false;
          ">
@@ -92,6 +96,8 @@
            document.getElementById('dashboardSection').style.display='none';
            document.getElementById('bookingsSection').style.display='flex';
            document.getElementById('logsSection').style.display='none';
+           document.getElementById('bookingHistorySection').style.display='none';
+           document.getElementById('customerHistorySection').style.display='none';
            switchPlatform('ps');
            return false;
          ">
@@ -111,6 +117,8 @@
            document.getElementById('dashboardSection').style.display='none';
            document.getElementById('bookingsSection').style.display='flex';
            document.getElementById('logsSection').style.display='none';
+           document.getElementById('bookingHistorySection').style.display='none';
+           document.getElementById('customerHistorySection').style.display='none';
            switchPlatform('pc');
            showGuestsPage();
            return false;
@@ -162,6 +170,28 @@
           </svg>
         </span>
         Логи
+      </button>
+
+      <button id="bookingHistoryBtn" class="nav-item" type="button" style="display:none;"
+              onclick="showBookingHistoryPage();">
+        <span class="nav-icon">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.2" fill="none"/>
+            <path d="M7 3.2V7L9.8 8.6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span>
+        История броней
+      </button>
+
+      <button id="customerHistoryBtn" class="nav-item" type="button" style="display:none;"
+              onclick="showCustomerHistoryPage();">
+        <span class="nav-icon">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="7" cy="4.5" r="2.5" stroke="currentColor" stroke-width="1.2" fill="none"/>
+            <path d="M2 12c0-2.761 2.239-5 5-5s5 2.239 5 5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" fill="none"/>
+          </svg>
+        </span>
+        История клиентов
       </button>
     </nav>
 
@@ -360,7 +390,7 @@
 
         <div id="guestsPage" style="display:none;" data-platform="pc">
           <div style="display:flex;justify-content:space-between;margin-bottom:16px;align-items:center;gap:12px;">
-            <input type="text" id="guestSearchInput" placeholder="Поиск клиентов…" style="flex:1;max-width:360px;">
+            <input type="text" id="guestSearchInput" placeholder="Поиск по имени или телефону…" style="flex:1;max-width:360px;">
             <button type="button" onclick="hideGuestsPage()">← Назад</button>
           </div>
           <div class="guests-container" id="guestsContainer"></div>
@@ -393,7 +423,7 @@
           </div>
           <div style="display:flex;gap:8px;align-items:center;">
             <button type="button" onclick="loadAuditLogs()">Обновить</button>
-            <button type="button" onclick="downloadAuditLogs()">Скачать CSV</button>
+            <button type="button" onclick="downloadAuditLogs()">Скачать XLSX</button>
           </div>
         </div>
         <div class="section-card">
@@ -436,6 +466,10 @@
               <div class="audit-filter-label">По дату</div>
               <input type="datetime-local" id="auditFilterTo" onchange="loadAuditLogs()">
             </div>
+            <div>
+              <div class="audit-filter-label">ID брони</div>
+              <input type="text" id="auditFilterBookingUid" placeholder="PC-123 или PS-456" onchange="loadAuditLogs()">
+            </div>
             <div style="display:flex;gap:8px;align-items:flex-end;">
               <button type="button" onclick="loadAuditLogs()">Применить</button>
               <button type="button" onclick="resetAuditFilters()">Сбросить</button>
@@ -460,6 +494,97 @@
           <div id="auditLoadMore" style="display:none;text-align:center;padding:14px;">
             <button type="button" onclick="loadAuditLogs(true)">Загрузить ещё</button>
           </div>
+        </div>
+      </div>
+
+      <div id="bookingHistorySection" style="display:none; flex-direction:column; gap:24px;">
+        <div class="dashboard-heading" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h2>История броней</h2>
+            <span class="dashboard-sub">Полная история изменений по выбранной брони</span>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button type="button" onclick="loadBookingHistory()">Обновить</button>
+          </div>
+        </div>
+
+        <div class="section-card">
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+            <div>
+              <div class="audit-filter-label">ID брони</div>
+              <input type="text" id="bookingHistoryUidInput" placeholder="PC-a1b2@c3d4 или PS-a1b2@c3d4" onchange="loadBookingHistory()">
+            </div>
+            <div style="display:flex;gap:8px;align-items:flex-end;">
+              <button type="button" onclick="loadBookingHistory()">Применить</button>
+              <button type="button" onclick="resetBookingHistory()">Сбросить</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-card" style="padding:0;overflow:hidden;">
+          <div style="overflow-x:auto;max-height:60vh;overflow-y:auto;">
+            <table class="audit-table">
+              <thead>
+                <tr>
+                  <th>Дата и время</th>
+                  <th>Аккаунт</th>
+                  <th>Действие</th>
+                  <th>Подробности</th>
+                </tr>
+              </thead>
+              <tbody id="bookingHistoryTableBody"></tbody>
+            </table>
+          </div>
+          <div id="bookingHistoryEmptyState" class="audit-empty" style="display:none;">История не найдена</div>
+        </div>
+      </div>
+
+      <div id="customerHistorySection" style="display:none; flex-direction:column; gap:24px;">
+        <div class="dashboard-heading" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h2>История клиентов</h2>
+            <span class="dashboard-sub">Все брони выбранного клиента по номеру телефона</span>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button type="button" onclick="loadCustomerHistory()">Обновить</button>
+          </div>
+        </div>
+
+        <div class="section-card">
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+            <div>
+              <div class="audit-filter-label">Телефон клиента</div>
+              <input type="text" id="customerHistoryPhoneInput" placeholder="+7 777 123 45 67" onchange="loadCustomerHistory()">
+            </div>
+            <div>
+              <div class="audit-filter-label">Имя клиента</div>
+              <input type="text" id="customerHistoryNameInput" readonly placeholder="Выберите клиента из логов">
+            </div>
+            <div style="display:flex;gap:8px;align-items:flex-end;">
+              <button type="button" onclick="loadCustomerHistory()">Применить</button>
+              <button type="button" onclick="resetCustomerHistory()">Сбросить</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="section-card" style="padding:0;overflow:hidden;">
+          <div style="overflow-x:auto;max-height:60vh;overflow-y:auto;">
+            <table class="audit-table">
+              <thead>
+                <tr>
+                  <th>ID брони</th>
+                  <th>Клиент</th>
+                  <th>Телефон</th>
+                  <th>Добавлено</th>
+                  <th>Тип</th>
+                  <th>Дата и время</th>
+                  <th>Статус</th>
+                </tr>
+              </thead>
+              <tbody id="customerHistoryTableBody"></tbody>
+            </table>
+          </div>
+          <div id="customerHistoryEmptyState" class="audit-empty" style="display:none;">История клиента не найдена</div>
         </div>
       </div>
     </div>

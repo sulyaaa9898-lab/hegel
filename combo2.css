@@ -1126,6 +1126,81 @@ tr.booking-overdue:hover td {
 .guest-name  { font-size: 0.9375rem; font-weight: 600; color: #f4f4f5; margin-bottom: 5px; }
 .guest-phone { font-size: 0.8rem;    color: #71717a;   margin-bottom: 10px; }
 .guest-stats { font-size: 0.7875rem; color: #a1a1aa;   margin-bottom: 10px; line-height: 1.6; }
+.guest-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.guest-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.guest-summary-item {
+  padding: 10px 12px;
+  border: 1px solid #2f3650;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.02);
+}
+.guest-summary-item span {
+  display: block;
+  font-size: 0.75rem;
+  color: #8993b8;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.guest-summary-item strong {
+  font-size: 1rem;
+  color: #f4f4f5;
+}
+.guest-last-booking {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(99, 102, 241, 0.08);
+  border: 1px solid rgba(99, 102, 241, 0.18);
+}
+.guest-last-booking-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #8993b8;
+}
+.guest-last-booking-value {
+  font-size: 0.86rem;
+  color: #e5e7eb;
+}
+.guest-card-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+.guest-action-btn {
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(129, 140, 248, 0.26);
+  background: rgba(99, 102, 241, 0.14);
+  color: #dbe4ff;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.guest-action-btn:hover {
+  background: rgba(99, 102, 241, 0.22);
+}
+.guest-action-btn--secondary {
+  border-color: rgba(148, 163, 184, 0.2);
+  background: rgba(255,255,255,0.05);
+  color: #e5e7eb;
+}
 
 .guest-rating-bar {
   width: 100%;
@@ -1688,6 +1763,20 @@ select:focus,
 .audit-cell-details {
   color: var(--c-text-soft);
   max-width: 260px;
+}
+.audit-booking-link {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  color: var(--c-accent);
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+.audit-booking-link:hover {
+  opacity: 0.85;
 }
 .audit-badge {
   display: inline-block;

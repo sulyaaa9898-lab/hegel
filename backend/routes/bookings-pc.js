@@ -1,4 +1,5 @@
 import express from 'express';
+import { randomBytes } from 'crypto';
 import { dbAll, dbGet, dbRun } from '../db.js';
 import { requireAuth, requireRoot } from '../middleware/auth.js';
 import { requireClubContext } from '../middleware/tenant.js';
@@ -40,8 +41,12 @@ function safeParseObject(raw) {
 }
 
 function mapBooking(row) {
+  const bookingUid = row.booking_uid && String(row.booking_uid).trim()
+    ? String(row.booking_uid).trim()
+    : null;
   return {
     id: row.id,
+    booking_uid: bookingUid,
     admin_id: row.admin_id,
     admin_login: row.admin_login || null,
     admin_name: row.admin_name || null,
@@ -58,6 +63,23 @@ function mapBooking(row) {
     updated_at: row.updated_at,
     deleted_at: row.deleted_at
   };
+}
+
+function createBookingUid(prefix) {
+  return `${prefix}-${randomBytes(2).toString('hex')}@${randomBytes(2).toString('hex')}`.toUpperCase();
+}
+
+async function generateUniqueBookingUid(db, clubId) {
+  for (let i = 0; i < 10; i += 1) {
+    const uid = createBookingUid('PC');
+    const found = await dbGet(
+      db,
+      'SELECT id FROM bookings_pc WHERE club_id = ? AND booking_uid = ? LIMIT 1',
+      [clubId, uid]
+    );
+    if (!found) return uid;
+  }
+  return `PC-${Date.now().toString(36)}@${randomBytes(2).toString('hex')}`.toUpperCase();
 }
 
 async function writeAudit(db, payload) {
@@ -328,6 +350,15 @@ router.post('/', async (req, res, next) => {
         createdAt,
         createdAt
       ]
+    );
+
+    const bookingUid = await generateUniqueBookingUid(db, req.club.id);
+    await dbRun(
+      db,
+      `UPDATE bookings_pc
+       SET booking_uid = COALESCE(NULLIF(booking_uid, ''), ?)
+       WHERE id = ? AND club_id = ?`,
+      [bookingUid, insert.id, req.club.id]
     );
 
     const created = await dbGet(db, 'SELECT * FROM bookings_pc WHERE id = ? AND club_id = ?', [insert.id, req.club.id]);

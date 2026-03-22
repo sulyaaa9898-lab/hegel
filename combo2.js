@@ -461,6 +461,7 @@ return data;
 function fromApiBooking(row) {
 return {
 id: row.id,
+booking_uid: row.booking_uid || '',
 name: row.name,
 pc: row.pc,
 time: row.time,
@@ -1377,50 +1378,66 @@ container.innerHTML = '';
 const searchVal = document.getElementById('guestSearchInput')?.value.toLowerCase() || '';
 const guestList = Object.values(guestRatings).sort((a, b) => b.rating - a.rating);
 guestList.forEach(guest => {
-if (searchVal && !guest.phone.toLowerCase().includes(searchVal)) return;
-const guestName =
-bookings.find(b => cleanPhone(b.phone) === cleanPhone(guest.phone))?.name ||
-done.find(b => cleanPhone(b.phone) === cleanPhone(guest.phone))?.name ||
-'Неизвестный';
+const relatedBookings = bookings.concat(done)
+.filter(b => cleanPhone(b.phone || '') === cleanPhone(guest.phone || ''))
+.sort((a, b) => {
+// Сортируем только по времени создания брони (новые первыми)
+return new Date(b.addedAt || 0).getTime() - new Date(a.addedAt || 0).getTime();
+});
+const latestBooking = relatedBookings[0] || null;
+const guestName = latestBooking?.name || 'Неизвестный';
+if (searchVal && !guest.phone.toLowerCase().includes(searchVal) && !guestName.toLowerCase().includes(searchVal)) return;
+
 let ratingColor = '#4caf50';
 if (guest.rating < 90) ratingColor = '#2196f3';
 if (guest.rating < 70) ratingColor = '#ffc107';
 if (guest.rating < 50) ratingColor = '#f44336';
+
+const activeCount = bookings.filter(b => cleanPhone(b.phone || '') === cleanPhone(guest.phone || '')).length;
+const completedCount = done.filter(b => cleanPhone(b.phone || '') === cleanPhone(guest.phone || '')).length;
+const latestBookingLabel = latestBooking
+? [latestBooking.dateDisplay || latestBooking.dateValue || '', latestBooking.time || ''].filter(Boolean).join(' · ')
+: 'Нет данных';
+const safePhoneArg = String(guest.phone || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+const safeNameArg = String(guestName || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+const safeBookingUidArg = latestBooking && latestBooking.booking_uid
+? String(latestBooking.booking_uid).replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+: '';
+const latestBookingButton = safeBookingUidArg
+? `<button type="button" class="guest-action-btn guest-action-btn--secondary" onclick="openBookingHistoryByUid('${safeBookingUidArg}')">Последняя бронь</button>`
+: '';
+
 const card = document.createElement('div');
 card.className = 'guest-card';
-const nameDiv = document.createElement('div');
-nameDiv.className = 'guest-name';
-nameDiv.textContent = guestName;
-const phoneDiv = document.createElement('div');
-phoneDiv.className = 'guest-phone';
-phoneDiv.textContent = guest.phone;
-const statsDiv = document.createElement('div');
-statsDiv.className = 'guest-stats';
-statsDiv.append(`Всего броней: ${guest.total}`, document.createElement('br'));
-statsDiv.append(`Пришёл: ${guest.arrived}`, document.createElement('br'));
-statsDiv.append(`Опозданий: ${guest.late}`, document.createElement('br'));
-statsDiv.append(`Отмен: ${guest.cancelled}`, document.createElement('br'));
-statsDiv.append(`Не пришёл: ${guest.noShow}`);
-const barWrap = document.createElement('div');
-barWrap.className = 'guest-rating-bar';
-const barFill = document.createElement('div');
-barFill.className = 'guest-rating-fill';
-barFill.style.width = `${guest.rating}%`;
-barFill.style.backgroundColor = ratingColor;
-barWrap.appendChild(barFill);
-const percent = document.createElement('div');
-percent.style.textAlign = 'center';
-percent.style.fontSize = '1.1em';
-percent.style.fontWeight = '600';
-percent.style.color = ratingColor;
-percent.textContent = `${Math.round(guest.rating)}%`;
-card.appendChild(nameDiv);
-card.appendChild(phoneDiv);
-card.appendChild(statsDiv);
-card.appendChild(barWrap);
-card.appendChild(percent);
+card.innerHTML = `
+<div class="guest-card-top">
+	<div>
+		<div class="guest-name">${escapeHtml(guestName)}</div>
+		<div class="guest-phone">${escapeHtml(guest.phone || '—')}</div>
+	</div>
+	<span class="rating-badge ${getRatingBadgeClass(Number(guest.rating || 0))}">${Math.round(Number(guest.rating || 0))}%</span>
+</div>
+<div class="guest-summary-grid">
+	<div class="guest-summary-item"><span>Всего броней</span><strong>${escapeHtml(String(guest.total || 0))}</strong></div>
+	<div class="guest-summary-item"><span>Активные</span><strong>${escapeHtml(String(activeCount))}</strong></div>
+	<div class="guest-summary-item"><span>Завершённые</span><strong>${escapeHtml(String(completedCount))}</strong></div>
+	<div class="guest-summary-item"><span>Неявки</span><strong>${escapeHtml(String(guest.noShow || 0))}</strong></div>
+</div>
+<div class="guest-stats">Пришёл: ${escapeHtml(String(guest.arrived || 0))} · Опозданий: ${escapeHtml(String(guest.late || 0))} · Отмен: ${escapeHtml(String(guest.cancelled || 0))}</div>
+<div class="guest-last-booking">
+	<span class="guest-last-booking-label">Последняя бронь</span>
+	<span class="guest-last-booking-value">${escapeHtml(latestBookingLabel)}</span>
+</div>
+<div class="guest-rating-bar"><div class="guest-rating-fill" style="width:${Math.max(0, Math.min(100, Number(guest.rating || 0)))}%;background-color:${ratingColor};"></div></div>
+<div class="guest-card-actions">
+	<button type="button" class="guest-action-btn" onclick="openCustomerHistoryByPhone('${safePhoneArg}', '${safeNameArg}')">История клиента</button>
+	${latestBookingButton}
+</div>`;
 container.appendChild(card);
 });
+if (!container.children.length) {
+container.innerHTML = '<div class="audit-empty">Клиенты не найдены</div>';
+}
 }
 function openActionModal(index) {
 currentBookingIndex = index;
@@ -1727,8 +1744,16 @@ document.getElementById('userPanel').style.display = 'flex';
 document.getElementById('adminBtn').style.display = canManageClub() ? 'inline-block' : 'none';
 document.getElementById('statsBtn').style.display = canManageClub() ? 'inline-block' : 'none';
 document.getElementById('logsBtn').style.display = isClubOwner() ? 'inline-block' : 'none';
+document.getElementById('bookingHistoryBtn').style.display = isClubOwner() ? 'inline-block' : 'none';
+document.getElementById('customerHistoryBtn').style.display = isClubOwner() ? 'inline-block' : 'none';
 document.getElementById('authModal').style.display = 'none';
 renderSubscriptionState();
+
+// Предотвратить навигацию браузера назад к странице логирования
+window.history.pushState(null, null, window.location.href);
+window.addEventListener('popstate', function(event) {
+window.history.pushState(null, null, window.location.href);
+});
 } catch (e) {
 currentAdmin = null;
 storage.saveCurrentAdmin(state);
@@ -1830,6 +1855,8 @@ document.getElementById('userPanel').style.display = 'flex';
 document.getElementById('adminBtn').style.display = canManageClub() ? 'inline-block' : 'none';
 document.getElementById('statsBtn').style.display = canManageClub() ? 'inline-block' : 'none';
 document.getElementById('logsBtn').style.display = isClubOwner() ? 'inline-block' : 'none';
+document.getElementById('bookingHistoryBtn').style.display = isClubOwner() ? 'inline-block' : 'none';
+document.getElementById('customerHistoryBtn').style.display = isClubOwner() ? 'inline-block' : 'none';
 document.getElementById('authModal').style.display = 'none';
 renderSubscriptionState();
 enforceSubscriptionLock();
@@ -1931,6 +1958,8 @@ document.getElementById('userPanel').style.display = 'none';
 document.getElementById('adminBtn').style.display = 'none';
 document.getElementById('statsBtn').style.display = 'none';
 document.getElementById('logsBtn').style.display = 'none';
+document.getElementById('bookingHistoryBtn').style.display = 'none';
+document.getElementById('customerHistoryBtn').style.display = 'none';
 document.getElementById('authModal').style.display = 'flex';
 document.getElementById('loginInput').value = '';
 document.getElementById('passwordInput').value = '';
@@ -2195,6 +2224,9 @@ CREATE_ADMIN: 'create', DELETE_ADMIN: 'delete', PASSWORD_CHANGE: 'warning'
 const AUDIT_LOGS_LIMIT = 50;
 let auditLogsOffset = 0;
 let auditAccountsLoaded = false;
+let bookingHistoryCurrentUid = '';
+let customerHistoryCurrentPhone = '';
+let customerHistoryCurrentName = '';
 function escapeHtml(str) {
 return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
@@ -2205,6 +2237,8 @@ return;
 }
 document.getElementById('dashboardSection').style.display = 'none';
 document.getElementById('bookingsSection').style.display = 'none';
+document.getElementById('bookingHistorySection').style.display = 'none';
+document.getElementById('customerHistorySection').style.display = 'none';
 document.getElementById('logsSection').style.display = 'flex';
 document.querySelectorAll('.nav-item').forEach(function(el) { el.classList.remove('active'); });
 document.getElementById('logsBtn').classList.add('active');
@@ -2213,6 +2247,70 @@ if (!auditAccountsLoaded) {
 await loadAuditAccountsFilter();
 }
 loadAuditLogs();
+}
+
+async function showBookingHistoryPage() {
+if (!isClubOwner()) {
+notify('❌ Только владелец клуба может просматривать историю броней', 'Ошибка');
+return;
+}
+document.getElementById('dashboardSection').style.display = 'none';
+document.getElementById('bookingsSection').style.display = 'none';
+document.getElementById('logsSection').style.display = 'none';
+document.getElementById('customerHistorySection').style.display = 'none';
+document.getElementById('bookingHistorySection').style.display = 'flex';
+document.querySelectorAll('.nav-item').forEach(function(el) { el.classList.remove('active'); });
+document.getElementById('bookingHistoryBtn').classList.add('active');
+if (!auditAccountsLoaded) {
+await loadAuditAccountsFilter();
+}
+if (bookingHistoryCurrentUid) {
+const input = document.getElementById('bookingHistoryUidInput');
+if (input) input.value = bookingHistoryCurrentUid;
+}
+loadBookingHistory();
+}
+
+function openBookingHistoryByUid(bookingUid) {
+const uid = String(bookingUid || '').trim().toUpperCase();
+if (!uid) return;
+bookingHistoryCurrentUid = uid;
+const auditInput = document.getElementById('auditFilterBookingUid');
+if (auditInput) auditInput.value = uid;
+const historyInput = document.getElementById('bookingHistoryUidInput');
+if (historyInput) historyInput.value = uid;
+showBookingHistoryPage();
+}
+
+async function showCustomerHistoryPage() {
+if (!isClubOwner()) {
+notify('❌ Только владелец клуба может просматривать историю клиентов', 'Ошибка');
+return;
+}
+document.getElementById('dashboardSection').style.display = 'none';
+document.getElementById('bookingsSection').style.display = 'none';
+document.getElementById('logsSection').style.display = 'none';
+document.getElementById('bookingHistorySection').style.display = 'none';
+document.getElementById('customerHistorySection').style.display = 'flex';
+document.querySelectorAll('.nav-item').forEach(function(el) { el.classList.remove('active'); });
+document.getElementById('customerHistoryBtn').classList.add('active');
+const phoneInput = document.getElementById('customerHistoryPhoneInput');
+const nameInput = document.getElementById('customerHistoryNameInput');
+if (phoneInput) phoneInput.value = customerHistoryCurrentPhone;
+if (nameInput) nameInput.value = customerHistoryCurrentName;
+loadCustomerHistory();
+}
+
+function openCustomerHistoryByPhone(phone, name) {
+const normalizedPhone = String(phone || '').trim();
+if (!normalizedPhone) return;
+customerHistoryCurrentPhone = normalizedPhone;
+customerHistoryCurrentName = String(name || '').trim();
+const phoneInput = document.getElementById('customerHistoryPhoneInput');
+const nameInput = document.getElementById('customerHistoryNameInput');
+if (phoneInput) phoneInput.value = normalizedPhone;
+if (nameInput) nameInput.value = customerHistoryCurrentName;
+showCustomerHistoryPage();
 }
 
 async function loadAuditAccountsFilter() {
@@ -2248,6 +2346,8 @@ const action = document.getElementById('auditFilterAction').value;
 const account = document.getElementById('auditFilterAccount').value;
 const from = document.getElementById('auditFilterFrom').value;
 const to = document.getElementById('auditFilterTo').value;
+const bookingUidInput = document.getElementById('auditFilterBookingUid');
+const bookingUid = bookingUidInput ? String(bookingUidInput.value || '').trim().toUpperCase() : '';
 const params = new URLSearchParams();
 if (action) params.set('action', action);
 if (account) params.set('admin_id', account);
@@ -2255,11 +2355,30 @@ const fromIso = toAuditIso(from);
 const toIso = toAuditIso(to);
 if (fromIso) params.set('from', fromIso);
 if (toIso) params.set('to', toIso);
+if (bookingUid) params.set('booking_uid', bookingUid);
 params.set('limit', String(AUDIT_LOGS_LIMIT));
 params.set('offset', String(auditLogsOffset));
 return params;
 }
-function formatAuditDetails(action, before, after) {
+
+function getAuditFiltersPayload() {
+const action = document.getElementById('auditFilterAction').value;
+const account = document.getElementById('auditFilterAccount').value;
+const from = document.getElementById('auditFilterFrom').value;
+const to = document.getElementById('auditFilterTo').value;
+const bookingUidInput = document.getElementById('auditFilterBookingUid');
+const bookingUid = bookingUidInput ? String(bookingUidInput.value || '').trim().toUpperCase() : '';
+const payload = {};
+if (action) payload.action = action;
+if (account) payload.admin_id = account;
+const fromIso = toAuditIso(from);
+const toIso = toAuditIso(to);
+if (fromIso) payload.from = fromIso;
+if (toIso) payload.to = toIso;
+if (bookingUid) payload.booking_uid = bookingUid;
+return payload;
+}
+function formatAuditDetails(action, before, after, forcedBookingUid) {
 const data = after || before;
 if (!data) return '—';
 const hasPrepay = function(value) {
@@ -2277,11 +2396,15 @@ case 'MARK_CANCELLED':
 case 'MARK_NO_SHOW': {
 const name = data.name || data.guest_name || '';
 const pc = data.pc || '';
+const dateLabel = data.date_display || data.date_value || '';
 const time = data.time || '';
+const bookingUid = forcedBookingUid || data.booking_uid || '';
 const prepay = data.prepay || data.prepayment || data.prepaid_amount || '';
 const parts = [];
+if (bookingUid) parts.push('ID ' + bookingUid);
 if (name) parts.push(name);
 if (pc) parts.push('ПК ' + pc);
+if (dateLabel) parts.push(dateLabel);
 if (time) parts.push(time);
 if (hasPrepay(prepay)) parts.push('Предоплата: ' + prepay + ' ₸');
 if (action.startsWith('MARK_') && before && after && before.status && after.status) {
@@ -2294,10 +2417,16 @@ case 'UPDATE_BOOKING_PS':
 case 'DELETE_BOOKING_PS': {
 const name = data.name || data.client_name || '';
 const ps = data.ps_id || data.console_id || '';
+const dateLabel = data.date_display || data.date_value || '';
+const time = data.time || '';
+const bookingUid = forcedBookingUid || data.booking_uid || '';
 const prepay = data.prepay || data.prepayment || data.prepaid_amount || '';
 const parts = [];
+if (bookingUid) parts.push('ID ' + bookingUid);
 if (name) parts.push(name);
 if (ps) parts.push('PS-' + String(ps).padStart(2, '0'));
+if (dateLabel) parts.push(dateLabel);
+if (time) parts.push(time);
 if (hasPrepay(prepay)) parts.push('Предоплата: ' + prepay + ' ₸');
 return parts.join(' · ') || '—';
 }
@@ -2337,6 +2466,44 @@ default:
 return '—';
 }
 }
+
+function getAuditCustomerMeta(log) {
+const data = log.after || log.before || null;
+if (!data) return null;
+const phone = String(data.phone || data.client_phone || '').trim();
+const name = String(data.name || data.guest_name || data.client_name || '').trim();
+if (!phone || !name) return null;
+if (!/^CREATE_BOOKING_|^UPDATE_BOOKING_|^DELETE_BOOKING_|^MARK_/.test(String(log.action || ''))) {
+return null;
+}
+return { phone: phone, name: name };
+}
+
+function formatAuditDetailsHtml(log) {
+const details = formatAuditDetails(log.action, log.before, log.after, log.booking_uid);
+const safeDetails = escapeHtml(details);
+const bookingUid = String(log.booking_uid || '').trim().toUpperCase();
+const customerMeta = getAuditCustomerMeta(log);
+let html = safeDetails;
+if (bookingUid) {
+const prefix = escapeHtml('ID ' + bookingUid);
+if (html.startsWith(prefix)) {
+const rest = html.slice(prefix.length);
+html = '<button type="button" class="audit-booking-link" onclick="openBookingHistoryByUid(\'' + bookingUid + '\')">' + prefix + '</button>' + rest;
+}
+}
+if (customerMeta) {
+const safeName = escapeHtml(customerMeta.name);
+const safePhone = String(customerMeta.phone).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+const safeNameArg = String(customerMeta.name).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+html = html.replace(
+safeName,
+'<button type="button" class="audit-booking-link" onclick="openCustomerHistoryByPhone(\'' + safePhone + '\', \'' + safeNameArg + '\')">' + safeName + '</button>'
+);
+}
+return html;
+}
+
 async function loadAuditLogs(loadMore) {
 if (!isClubOwner()) return;
 if (!loadMore) auditLogsOffset = 0;
@@ -2362,14 +2529,14 @@ logs.forEach(function(log) {
 const tr = document.createElement('tr');
 const category = ACTION_CATEGORY[log.action] || 'neutral';
 const label = ACTION_LABELS[log.action] || log.action;
-const details = formatAuditDetails(log.action, log.before, log.after);
+const detailsHtml = formatAuditDetailsHtml(log);
 const date = new Date(log.timestamp);
 const dateStr = date.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 tr.innerHTML =
 '<td class="audit-cell-time">' + escapeHtml(dateStr) + '</td>' +
 '<td class="audit-cell-who">' + escapeHtml(log.admin_name || log.admin_login || '—') + '</td>' +
 '<td><span class="audit-badge audit-badge--' + category + '">' + escapeHtml(label) + '</span></td>' +
-'<td class="audit-cell-details">' + escapeHtml(details) + '</td>';
+'<td class="audit-cell-details">' + detailsHtml + '</td>';
 tbody.appendChild(tr);
 });
 auditLogsOffset += logs.length;
@@ -2381,11 +2548,149 @@ tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;col
 notify(err.message || 'Ошибка загрузки логов', 'Ошибка');
 }
 }
+
+async function loadBookingHistory() {
+if (!isClubOwner()) return;
+const tbody = document.getElementById('bookingHistoryTableBody');
+const emptyState = document.getElementById('bookingHistoryEmptyState');
+if (!tbody || !emptyState) return;
+const input = document.getElementById('bookingHistoryUidInput');
+const uid = input ? String(input.value || '').trim().toUpperCase() : '';
+bookingHistoryCurrentUid = uid;
+if (!uid) {
+tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;opacity:0.6;">Введите ID брони</td></tr>';
+emptyState.style.display = 'none';
+return;
+}
+
+tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:24px;opacity:0.5;">Загрузка…</td></tr>';
+emptyState.style.display = 'none';
+
+try {
+const data = await apiRequest('/audit/booking-history/' + encodeURIComponent(uid));
+const logs = data.logs || [];
+tbody.innerHTML = '';
+if (logs.length === 0) {
+emptyState.style.display = 'block';
+return;
+}
+logs.forEach(function(log) {
+const tr = document.createElement('tr');
+const category = ACTION_CATEGORY[log.action] || 'neutral';
+const label = ACTION_LABELS[log.action] || log.action;
+const details = formatAuditDetails(log.action, log.before, log.after, uid);
+const date = new Date(log.timestamp);
+const dateStr = date.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+tr.innerHTML =
+'<td class="audit-cell-time">' + escapeHtml(dateStr) + '</td>' +
+'<td class="audit-cell-who">' + escapeHtml(log.admin_name || log.admin_login || '—') + '</td>' +
+'<td><span class="audit-badge audit-badge--' + category + '">' + escapeHtml(label) + '</span></td>' +
+'<td class="audit-cell-details">' + escapeHtml(details) + '</td>';
+tbody.appendChild(tr);
+});
+} catch (err) {
+tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:#f87171;">' + escapeHtml(err.message || 'Ошибка загрузки истории') + '</td></tr>';
+notify(err.message || 'Ошибка загрузки истории брони', 'Ошибка');
+}
+}
+
+function resetBookingHistory() {
+bookingHistoryCurrentUid = '';
+const input = document.getElementById('bookingHistoryUidInput');
+if (input) input.value = '';
+const tbody = document.getElementById('bookingHistoryTableBody');
+if (tbody) tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;opacity:0.6;">Введите ID брони</td></tr>';
+const emptyState = document.getElementById('bookingHistoryEmptyState');
+if (emptyState) emptyState.style.display = 'none';
+}
+
+async function loadCustomerHistory() {
+if (!isClubOwner()) return;
+const tbody = document.getElementById('customerHistoryTableBody');
+const emptyState = document.getElementById('customerHistoryEmptyState');
+const phoneInput = document.getElementById('customerHistoryPhoneInput');
+const nameInput = document.getElementById('customerHistoryNameInput');
+if (!tbody || !emptyState) return;
+const phone = phoneInput ? String(phoneInput.value || '').trim() : '';
+const name = nameInput ? String(nameInput.value || '').trim() : '';
+customerHistoryCurrentPhone = phone;
+customerHistoryCurrentName = name;
+if (!phone) {
+tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;opacity:0.6;">Выберите клиента из логов</td></tr>';
+emptyState.style.display = 'none';
+return;
+}
+
+tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;opacity:0.5;">Загрузка…</td></tr>';
+emptyState.style.display = 'none';
+
+try {
+const data = await apiRequest('/audit/customer-history/' + encodeURIComponent(phone));
+const bookings = data.bookings || [];
+if (nameInput) nameInput.value = data.customer_name || name || '';
+customerHistoryCurrentName = data.customer_name || name || '';
+tbody.innerHTML = '';
+if (bookings.length === 0) {
+emptyState.style.display = 'block';
+return;
+}
+
+// Отсортировать по времени создания (новые первыми)
+bookings.sort((a, b) => {
+const timeA = new Date(a.created_at || 0).getTime();
+const timeB = new Date(b.created_at || 0).getTime();
+return timeB - timeA;
+});
+
+bookings.forEach(function(item) {
+const tr = document.createElement('tr');
+const dateText = item.date_value || '—';
+const statusText = item.deleted_at ? 'Удалена' : (item.status || '—');
+const bookingUid = String(item.booking_uid || '').trim().toUpperCase();
+const createdAt = item.created_at || '';
+const createdDate = createdAt ? createdAt.split('T')[0] : '—';
+const createdTime = createdAt ? (createdAt.split('T')[1] ? createdAt.split('T')[1].substring(0, 5) : '—') : '—';
+const createdDisplay = createdDate !== '—' && createdTime !== '—' ? createdDate + ' ' + createdTime : (createdDate !== '—' ? createdDate : '—');
+const uidHtml = bookingUid
+? '<button type="button" class="audit-booking-link" onclick="openBookingHistoryByUid(\'' + bookingUid + '\')">' + escapeHtml(bookingUid) + '</button>'
+: '—';
+const dateTimeDisplay = dateText !== '—' && item.time ? escapeHtml(dateText) + ' ' + escapeHtml(item.time) : (dateText !== '—' ? escapeHtml(dateText) : '—');
+tr.innerHTML =
+'<td class="audit-cell-details">' + uidHtml + '</td>' +
+'<td class="audit-cell-who">' + escapeHtml(item.name || '—') + '</td>' +
+'<td>' + escapeHtml(item.phone || '—') + '</td>' +
+'<td class="audit-cell-time">' + escapeHtml(createdDisplay) + '</td>' +
+'<td>' + escapeHtml(item.platform_label || '—') + '</td>' +
+'<td class="audit-cell-time">' + dateTimeDisplay + '</td>' +
+'<td>' + escapeHtml(statusText) + '</td>';
+tbody.appendChild(tr);
+});
+} catch (err) {
+tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#f87171;">' + escapeHtml(err.message || 'Ошибка загрузки истории клиента') + '</td></tr>';
+notify(err.message || 'Ошибка загрузки истории клиента', 'Ошибка');
+}
+}
+
+function resetCustomerHistory() {
+customerHistoryCurrentPhone = '';
+customerHistoryCurrentName = '';
+const phoneInput = document.getElementById('customerHistoryPhoneInput');
+const nameInput = document.getElementById('customerHistoryNameInput');
+if (phoneInput) phoneInput.value = '';
+if (nameInput) nameInput.value = '';
+const tbody = document.getElementById('customerHistoryTableBody');
+if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;opacity:0.6;">Выберите клиента из логов</td></tr>';
+const emptyState = document.getElementById('customerHistoryEmptyState');
+if (emptyState) emptyState.style.display = 'none';
+}
+
 function resetAuditFilters() {
 document.getElementById('auditFilterAction').value = '';
 document.getElementById('auditFilterAccount').value = '';
 document.getElementById('auditFilterFrom').value = '';
 document.getElementById('auditFilterTo').value = '';
+const bookingUidInput = document.getElementById('auditFilterBookingUid');
+if (bookingUidInput) bookingUidInput.value = '';
 auditLogsOffset = 0;
 loadAuditLogs();
 }
@@ -2402,7 +2707,7 @@ headers: {
 Authorization: `Bearer ${getAuthToken()}`,
 'x-club-id': clubContext.id ? String(clubContext.id) : ''
 },
-body: JSON.stringify({})
+body: JSON.stringify(getAuditFiltersPayload())
 });
 if (!response.ok) {
 const text = await response.text();

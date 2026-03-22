@@ -36,7 +36,7 @@ function parseJsonSafe(value) {
   }
 }
 
-function formatAuditDetails(action, before, after) {
+function formatAuditDetails(action, before, after, forcedBookingUid) {
   const data = after || before;
   if (!data) return '—';
   const hasPrepay = (value) => {
@@ -54,11 +54,15 @@ function formatAuditDetails(action, before, after) {
     case 'MARK_NO_SHOW': {
       const name = data.name || data.guest_name || '';
       const pc = data.pc || '';
+      const dateLabel = data.date_display || data.date_value || '';
       const time = data.time || '';
+      const bookingUid = forcedBookingUid || data.booking_uid || '';
       const prepay = data.prepay || data.prepayment || data.prepaid_amount || '';
       const parts = [];
+      if (bookingUid) parts.push('ID ' + bookingUid);
       if (name) parts.push(name);
       if (pc) parts.push('ПК ' + pc);
+      if (dateLabel) parts.push(dateLabel);
       if (time) parts.push(time);
       if (hasPrepay(prepay)) parts.push('Предоплата: ' + prepay + ' ₸');
       if (action.startsWith('MARK_') && before && after && before.status && after.status) {
@@ -71,10 +75,16 @@ function formatAuditDetails(action, before, after) {
     case 'DELETE_BOOKING_PS': {
       const name = data.name || data.client_name || '';
       const ps = data.ps_id || data.console_id || '';
+      const dateLabel = data.date_display || data.date_value || '';
+      const time = data.time || '';
+      const bookingUid = forcedBookingUid || data.booking_uid || '';
       const prepay = data.prepay || data.prepayment || data.prepaid_amount || '';
       const parts = [];
+      if (bookingUid) parts.push('ID ' + bookingUid);
       if (name) parts.push(name);
       if (ps) parts.push('PS-' + String(ps).padStart(2, '0'));
+      if (dateLabel) parts.push(dateLabel);
+      if (time) parts.push(time);
       if (hasPrepay(prepay)) parts.push('Предоплата: ' + prepay + ' ₸');
       return parts.join(' · ') || '—';
     }
@@ -135,10 +145,88 @@ function appendScope(query, params, req) {
   return query;
 }
 
+function normalizeBookingUid(value) {
+  const normalized = String(value || '').trim().toUpperCase();
+  return normalized;
+}
+
+function normalizePhone(value) {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.startsWith('8') && digits.length === 11) return `7${digits.slice(1)}`;
+  return digits;
+}
+
+function appendBookingUidFilter(query, params, bookingUid) {
+  const uid = normalizeBookingUid(bookingUid);
+  if (!uid) return query;
+
+  const likePattern = `\"booking_uid\":\"${uid}\"`;
+  query += ` AND (
+    l.before_state LIKE ?
+    OR l.after_state LIKE ?
+    OR (l.entity = 'booking_pc' AND l.entity_id IN (
+      SELECT id FROM bookings_pc WHERE booking_uid = ?
+    ))
+    OR (l.entity = 'booking_ps' AND l.entity_id IN (
+      SELECT id FROM bookings_ps WHERE booking_uid = ?
+    ))
+  )`;
+  params.push(`%${likePattern}%`, `%${likePattern}%`, uid, uid);
+  return query;
+}
+
+async function attachBookingUids(db, rows) {
+  const result = rows.map((row) => {
+    const before = parseJsonSafe(row.before_state);
+    const after = parseJsonSafe(row.after_state);
+    return {
+      ...row,
+      _beforeParsed: before,
+      _afterParsed: after,
+      _bookingUidParsed: (after && after.booking_uid) || (before && before.booking_uid) || ''
+    };
+  });
+
+  const missingPcIds = [];
+  const missingPsIds = [];
+  result.forEach((row) => {
+    if (row._bookingUidParsed) return;
+    if (row.entity === 'booking_pc' && row.entity_id) missingPcIds.push(Number(row.entity_id));
+    if (row.entity === 'booking_ps' && row.entity_id) missingPsIds.push(Number(row.entity_id));
+  });
+
+  const pcMap = new Map();
+  const psMap = new Map();
+
+  if (missingPcIds.length > 0) {
+    const ids = Array.from(new Set(missingPcIds));
+    const placeholders = ids.map(() => '?').join(',');
+    const pcRows = await dbAll(db, `SELECT id, booking_uid FROM bookings_pc WHERE id IN (${placeholders})`, ids);
+    pcRows.forEach((row) => pcMap.set(Number(row.id), row.booking_uid || ''));
+  }
+
+  if (missingPsIds.length > 0) {
+    const ids = Array.from(new Set(missingPsIds));
+    const placeholders = ids.map(() => '?').join(',');
+    const psRows = await dbAll(db, `SELECT id, booking_uid FROM bookings_ps WHERE id IN (${placeholders})`, ids);
+    psRows.forEach((row) => psMap.set(Number(row.id), row.booking_uid || ''));
+  }
+
+  return result.map((row) => ({
+    ...row,
+    booking_uid: row._bookingUidParsed
+      || (row.entity === 'booking_pc' ? (pcMap.get(Number(row.entity_id)) || '') : '')
+      || (row.entity === 'booking_ps' ? (psMap.get(Number(row.entity_id)) || '') : ''),
+    before: row._beforeParsed,
+    after: row._afterParsed
+  }));
+}
+
 router.get('/logs', async (req, res, next) => {
   try {
     const db = req.app.locals.db;
-    const { action, admin_id, from, to, entity, limit, offset } = req.query;
+    const { action, admin_id, from, to, entity, booking_uid, limit, offset } = req.query;
 
     const params = [];
     let query = `SELECT l.*, a.name AS admin_name
@@ -167,6 +255,7 @@ router.get('/logs', async (req, res, next) => {
       query += ' AND l.timestamp <= ?';
       params.push(String(to));
     }
+    query = appendBookingUidFilter(query, params, booking_uid);
 
     const parsedLimit = Math.min(500, Math.max(1, Number(limit) || 200));
     const parsedOffset = Math.max(0, Number(offset) || 0);
@@ -174,7 +263,8 @@ router.get('/logs', async (req, res, next) => {
     params.push(parsedLimit, parsedOffset);
 
     const rows = await dbAll(db, query, params);
-    const logs = rows.map((row) => ({
+    const withBookingUids = await attachBookingUids(db, rows);
+    const logs = withBookingUids.map((row) => ({
       id: row.id,
       admin_id: row.admin_id,
       admin_login: row.admin_login,
@@ -182,8 +272,9 @@ router.get('/logs', async (req, res, next) => {
       action: row.action,
       entity: row.entity,
       entity_id: row.entity_id,
-      before: row.before_state ? JSON.parse(row.before_state) : null,
-      after: row.after_state ? JSON.parse(row.after_state) : null,
+      booking_uid: row.booking_uid || null,
+      before: row.before,
+      after: row.after,
       timestamp: row.timestamp,
       source: row.source,
       ip_address: row.ip_address
@@ -195,10 +286,144 @@ router.get('/logs', async (req, res, next) => {
   }
 });
 
+router.get('/booking-history/:bookingUid', async (req, res, next) => {
+  try {
+    const db = req.app.locals.db;
+    const bookingUid = normalizeBookingUid(req.params.bookingUid);
+    if (!bookingUid) {
+      return res.status(400).json({ error: 'bookingUid is required' });
+    }
+
+    const params = [];
+    let query = `SELECT l.*, a.name AS admin_name
+           FROM audit_logs l
+           LEFT JOIN admins a ON a.id = l.admin_id
+           WHERE 1=1`;
+    query = appendScope(query, params, req);
+    query = appendBookingUidFilter(query, params, bookingUid);
+    query += ' ORDER BY l.timestamp ASC, l.id ASC LIMIT 2000';
+
+    const rows = await dbAll(db, query, params);
+    const withBookingUids = await attachBookingUids(db, rows);
+    const logs = withBookingUids.map((row) => ({
+      id: row.id,
+      admin_id: row.admin_id,
+      admin_login: row.admin_login,
+      admin_name: row.admin_name || null,
+      action: row.action,
+      entity: row.entity,
+      entity_id: row.entity_id,
+      booking_uid: row.booking_uid || bookingUid,
+      before: row.before,
+      after: row.after,
+      details: formatAuditDetails(
+        row.action,
+        row.before,
+        row.after,
+        row.booking_uid || bookingUid
+      ),
+      action_label: ACTION_LABELS[row.action] || row.action,
+      timestamp: row.timestamp
+    }));
+
+    return res.json({ booking_uid: bookingUid, count: logs.length, logs });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.get('/customer-history/:phone', async (req, res, next) => {
+  try {
+    const db = req.app.locals.db;
+    const requestedPhone = String(req.params.phone || '').trim();
+    const normalizedPhone = normalizePhone(requestedPhone);
+    if (!normalizedPhone) {
+      return res.status(400).json({ error: 'phone is required' });
+    }
+
+    const scopeParams = [];
+    let pcQuery = `SELECT booking_uid, name, phone, date_value, time, status, created_at, updated_at, deleted_at
+                   FROM bookings_pc b
+                   WHERE 1=1`;
+    let psQuery = `SELECT booking_uid, name, phone, date_value, time, status, created_at, updated_at, deleted_at
+                   FROM bookings_ps b
+                   WHERE 1=1`;
+
+    if (!req.auth.isRoot && (req.auth.role === CLUB_OWNER_ROLE || req.auth.isClubOwner)) {
+      pcQuery += ' AND b.club_id = ?';
+      psQuery += ' AND b.club_id = ?';
+      scopeParams.push(Number(req.auth.clubId));
+    }
+
+    pcQuery += ' ORDER BY COALESCE(updated_at, created_at) DESC, id DESC LIMIT 5000';
+    psQuery += ' ORDER BY COALESCE(updated_at, created_at) DESC, id DESC LIMIT 5000';
+
+    const [pcRows, psRows] = await Promise.all([
+      dbAll(db, pcQuery, scopeParams),
+      dbAll(db, psQuery, scopeParams)
+    ]);
+
+    const bookings = [];
+
+    pcRows.forEach((row) => {
+      if (normalizePhone(row.phone) !== normalizedPhone) return;
+      bookings.push({
+        booking_uid: row.booking_uid || null,
+        platform: 'pc',
+        platform_label: 'ПК',
+        name: row.name || '',
+        phone: row.phone || '',
+        date_value: row.date_value || '',
+        time: row.time || '',
+        status: row.status || '',
+        created_at: row.created_at || null,
+        updated_at: row.updated_at || null,
+        deleted_at: row.deleted_at || null
+      });
+    });
+
+    psRows.forEach((row) => {
+      if (normalizePhone(row.phone) !== normalizedPhone) return;
+      bookings.push({
+        booking_uid: row.booking_uid || null,
+        platform: 'ps',
+        platform_label: 'PS',
+        name: row.name || '',
+        phone: row.phone || '',
+        date_value: row.date_value || '',
+        time: row.time || '',
+        status: row.status || '',
+        created_at: row.created_at || null,
+        updated_at: row.updated_at || null,
+        deleted_at: row.deleted_at || null
+      });
+    });
+
+    bookings.sort((a, b) => {
+      const left = new Date(b.updated_at || b.created_at || 0).getTime();
+      const right = new Date(a.updated_at || a.created_at || 0).getTime();
+      return left - right;
+    });
+
+    const customerName = bookings.find((item) => item.name)?.name || '';
+    const customerPhone = bookings.find((item) => item.phone)?.phone || requestedPhone;
+
+    return res.json({
+      phone: customerPhone,
+      normalized_phone: normalizedPhone,
+      customer_name: customerName,
+      count: bookings.length,
+      bookings
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 router.post('/export', async (req, res, next) => {
   try {
     const db = req.app.locals.db;
-    const { action, admin_id, from, to, entity } = req.body || {};
+    const { action, admin_id, from, to, entity, booking_uid } = req.body || {};
 
     const params = [];
     let query = `SELECT l.*, a.name AS admin_name
@@ -227,10 +452,12 @@ router.post('/export', async (req, res, next) => {
       query += ' AND l.timestamp <= ?';
       params.push(String(to));
     }
+    query = appendBookingUidFilter(query, params, booking_uid);
 
     query += ' ORDER BY l.id DESC LIMIT 10000';
 
     const rows = await dbAll(db, query, params);
+    const withBookingUids = await attachBookingUids(db, rows);
 
     // Create Excel workbook
     const data = [];
@@ -239,7 +466,7 @@ router.post('/export', async (req, res, next) => {
     data.push(['Дата и время', 'Аккаунт', 'Действие', 'Подробности']);
 
     // Add data rows
-    rows.forEach((row) => {
+    withBookingUids.forEach((row) => {
       const date = new Date(row.timestamp);
       const formattedDate = date.toLocaleString('ru-RU', {
         year: 'numeric',
@@ -250,10 +477,10 @@ router.post('/export', async (req, res, next) => {
         second: '2-digit'
       });
       
-      const before = parseJsonSafe(row.before_state);
-      const after = parseJsonSafe(row.after_state);
+      const before = row.before;
+      const after = row.after;
       const actionLabel = ACTION_LABELS[row.action] || row.action;
-      const details = formatAuditDetails(row.action, before, after);
+      const details = formatAuditDetails(row.action, before, after, row.booking_uid);
 
       data.push([
         formattedDate,
@@ -295,7 +522,7 @@ router.post('/export', async (req, res, next) => {
 router.post('/export/json', async (req, res, next) => {
   try {
     const db = req.app.locals.db;
-    const { action, admin_id, from, to, entity } = req.body || {};
+    const { action, admin_id, from, to, entity, booking_uid } = req.body || {};
 
     const params = [];
     let query = `SELECT l.* FROM audit_logs l WHERE 1=1`;
@@ -321,19 +548,22 @@ router.post('/export/json', async (req, res, next) => {
       query += ' AND l.timestamp <= ?';
       params.push(String(to));
     }
+    query = appendBookingUidFilter(query, params, booking_uid);
 
     query += ' ORDER BY l.id DESC LIMIT 10000';
     const rows = await dbAll(db, query, params);
+    const withBookingUids = await attachBookingUids(db, rows);
 
-    const logs = rows.map((row) => ({
+    const logs = withBookingUids.map((row) => ({
       id: row.id,
       admin_id: row.admin_id,
       admin_login: row.admin_login,
       action: row.action,
       entity: row.entity,
       entity_id: row.entity_id,
-      before: row.before_state ? JSON.parse(row.before_state) : null,
-      after: row.after_state ? JSON.parse(row.after_state) : null,
+      booking_uid: row.booking_uid || null,
+      before: row.before,
+      after: row.after,
       timestamp: row.timestamp,
       source: row.source,
       ip_address: row.ip_address
@@ -341,7 +571,14 @@ router.post('/export/json', async (req, res, next) => {
 
     return res.json({
       exported_at: new Date().toISOString(),
-      filter: { action: action || null, admin_id: admin_id || null, from: from || null, to: to || null, entity: entity || null },
+      filter: {
+        action: action || null,
+        admin_id: admin_id || null,
+        from: from || null,
+        to: to || null,
+        entity: entity || null,
+        booking_uid: booking_uid || null
+      },
       total_records: logs.length,
       logs
     });

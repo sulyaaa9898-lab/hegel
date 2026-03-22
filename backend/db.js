@@ -135,6 +135,7 @@ async function createTables(db) {
       `CREATE TABLE IF NOT EXISTS bookings_pc (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         admin_id INTEGER NOT NULL,
+        booking_uid TEXT,
         name TEXT NOT NULL,
         pc TEXT NOT NULL,
         time TEXT NOT NULL,
@@ -154,6 +155,7 @@ async function createTables(db) {
       `CREATE TABLE IF NOT EXISTS bookings_ps (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         admin_id INTEGER NOT NULL,
+        booking_uid TEXT,
         ps_id INTEGER NOT NULL,
         name TEXT NOT NULL,
         phone TEXT,
@@ -317,6 +319,8 @@ async function runMigrations(db) {
   await ensureColumn(db, 'admins', 'club_id', 'INTEGER');
   await ensureColumn(db, 'bookings_pc', 'club_id', 'INTEGER');
   await ensureColumn(db, 'bookings_ps', 'club_id', 'INTEGER');
+  await ensureColumn(db, 'bookings_pc', 'booking_uid', 'TEXT');
+  await ensureColumn(db, 'bookings_ps', 'booking_uid', 'TEXT');
   await ensureColumn(db, 'ps_sessions', 'club_id', 'INTEGER');
   await ensureColumn(db, 'guest_ratings', 'club_id', 'INTEGER');
   await ensureColumn(db, 'audit_logs', 'club_id', 'INTEGER');
@@ -416,6 +420,22 @@ async function runMigrations(db) {
 
   await dbRun(db, 'UPDATE bookings_pc SET club_id = ? WHERE club_id IS NULL OR club_id = 0', [defaultClub.id]);
   await dbRun(db, 'UPDATE bookings_ps SET club_id = ? WHERE club_id IS NULL OR club_id = 0', [defaultClub.id]);
+  await dbRun(
+    db,
+    `UPDATE bookings_pc
+      SET booking_uid = 'PC-' || LOWER(HEX(RANDOMBLOB(2))) || '@' || LOWER(HEX(RANDOMBLOB(2)))
+      WHERE booking_uid IS NULL
+        OR TRIM(booking_uid) = ''
+        OR (booking_uid GLOB 'PC-[0-9]*' AND booking_uid NOT LIKE '%@%')`
+  );
+  await dbRun(
+    db,
+    `UPDATE bookings_ps
+      SET booking_uid = 'PS-' || LOWER(HEX(RANDOMBLOB(2))) || '@' || LOWER(HEX(RANDOMBLOB(2)))
+      WHERE booking_uid IS NULL
+        OR TRIM(booking_uid) = ''
+        OR (booking_uid GLOB 'PS-[0-9]*' AND booking_uid NOT LIKE '%@%')`
+  );
   await dbRun(db, 'UPDATE ps_sessions SET club_id = ? WHERE club_id IS NULL OR club_id = 0', [defaultClub.id]);
   await dbRun(db, 'UPDATE guest_ratings SET club_id = ? WHERE club_id IS NULL OR club_id = 0', [defaultClub.id]);
   await dbRun(db, 'UPDATE audit_logs SET club_id = ? WHERE club_id IS NULL OR club_id = 0', [defaultClub.id]);
@@ -424,6 +444,8 @@ async function runMigrations(db) {
   await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_admins_club_id ON admins(club_id)');
   await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_bookings_pc_club_id ON bookings_pc(club_id)');
   await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_bookings_ps_club_id ON bookings_ps(club_id)');
+  await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_bookings_pc_booking_uid ON bookings_pc(booking_uid)');
+  await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_bookings_ps_booking_uid ON bookings_ps(booking_uid)');
   await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_ps_sessions_club_id ON ps_sessions(club_id)');
   await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_guest_ratings_club_id ON guest_ratings(club_id)');
   await dbRun(db, 'CREATE INDEX IF NOT EXISTS idx_audit_logs_club_id ON audit_logs(club_id)');
