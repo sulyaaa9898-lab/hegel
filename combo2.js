@@ -151,9 +151,13 @@ const pcBtn = document.getElementById('platformPcBtn');
 const psBtn = document.getElementById('platformPsBtn');
 const platformSelector = document.querySelector('.platform-selector');
 const pcControls = document.querySelector('.controls-row[data-platform="pc"]');
+const navPC = document.getElementById('navPC');
+const navPS = document.getElementById('navPS');
 
 if (pcBtn) pcBtn.style.display = clubContext.pcEnabled ? 'inline-flex' : 'none';
 if (psBtn) psBtn.style.display = clubContext.psEnabled ? 'inline-flex' : 'none';
+if (navPC) navPC.style.display = clubContext.pcEnabled ? 'flex' : 'none';
+if (navPS) navPS.style.display = clubContext.psEnabled ? 'flex' : 'none';
 if (platformSelector) platformSelector.style.display = (clubContext.pcEnabled || clubContext.psEnabled) ? 'block' : 'none';
 if (pcControls) pcControls.style.display = clubContext.pcEnabled && currentPlatform === 'pc' ? 'flex' : 'none';
 
@@ -341,6 +345,27 @@ function canManageClub() {
 return !!(currentAdmin && (currentAdmin.role === CLUB_OWNER_ROLE || currentAdmin.isRoot));
 }
 
+function updateManagementNavVisibility() {
+const canManage = canManageClub();
+const ownerOnly = isClubOwner();
+const adminBtn = document.getElementById('adminBtn');
+const statsBtn = document.getElementById('statsBtn');
+const logsBtn = document.getElementById('logsBtn');
+const bookingHistoryBtn = document.getElementById('bookingHistoryBtn');
+const customerHistoryBtn = document.getElementById('customerHistoryBtn');
+const managementSectionLabel = document.getElementById('managementSectionLabel');
+
+if (adminBtn) adminBtn.style.display = canManage ? 'flex' : 'none';
+if (statsBtn) statsBtn.style.display = canManage ? 'flex' : 'none';
+if (logsBtn) logsBtn.style.display = ownerOnly ? 'flex' : 'none';
+if (bookingHistoryBtn) bookingHistoryBtn.style.display = ownerOnly ? 'flex' : 'none';
+if (customerHistoryBtn) customerHistoryBtn.style.display = ownerOnly ? 'flex' : 'none';
+
+if (managementSectionLabel) {
+managementSectionLabel.style.display = (canManage || ownerOnly) ? 'block' : 'none';
+}
+}
+
 function setAuthToken(token) {
 authToken = token || '';
 try {
@@ -405,11 +430,7 @@ saveSessionAdmin(null);
 if (document.getElementById('userPanel')) {
 document.getElementById('userPanel').style.display = 'none';
 }
-if (document.getElementById('adminBtn')) {
-document.getElementById('adminBtn').style.display = 'none';
-document.getElementById('statsBtn').style.display = 'none';
-document.getElementById('logsBtn').style.display = 'none';
-}
+updateManagementNavVisibility();
 if (document.getElementById('authModal')) {
 document.getElementById('authModal').style.display = 'flex';
 }
@@ -1741,11 +1762,7 @@ try {
 const userName = currentAdmin.isRoot ? ROOT_NAME : currentAdmin.name;
 document.getElementById('currentUser').textContent = userName;
 document.getElementById('userPanel').style.display = 'flex';
-document.getElementById('adminBtn').style.display = canManageClub() ? 'inline-block' : 'none';
-document.getElementById('statsBtn').style.display = canManageClub() ? 'inline-block' : 'none';
-document.getElementById('logsBtn').style.display = isClubOwner() ? 'inline-block' : 'none';
-document.getElementById('bookingHistoryBtn').style.display = isClubOwner() ? 'inline-block' : 'none';
-document.getElementById('customerHistoryBtn').style.display = isClubOwner() ? 'inline-block' : 'none';
+updateManagementNavVisibility();
 document.getElementById('authModal').style.display = 'none';
 renderSubscriptionState();
 
@@ -1852,11 +1869,7 @@ saveSessionAdmin(currentAdmin);
 const userName = currentAdmin.isRoot ? ROOT_NAME : user.name;
 document.getElementById('currentUser').textContent = userName;
 document.getElementById('userPanel').style.display = 'flex';
-document.getElementById('adminBtn').style.display = canManageClub() ? 'inline-block' : 'none';
-document.getElementById('statsBtn').style.display = canManageClub() ? 'inline-block' : 'none';
-document.getElementById('logsBtn').style.display = isClubOwner() ? 'inline-block' : 'none';
-document.getElementById('bookingHistoryBtn').style.display = isClubOwner() ? 'inline-block' : 'none';
-document.getElementById('customerHistoryBtn').style.display = isClubOwner() ? 'inline-block' : 'none';
+updateManagementNavVisibility();
 document.getElementById('authModal').style.display = 'none';
 renderSubscriptionState();
 enforceSubscriptionLock();
@@ -1955,11 +1968,7 @@ currentAdmin = null;
 storage.saveCurrentAdmin(state);
 saveSessionAdmin(null);
 document.getElementById('userPanel').style.display = 'none';
-document.getElementById('adminBtn').style.display = 'none';
-document.getElementById('statsBtn').style.display = 'none';
-document.getElementById('logsBtn').style.display = 'none';
-document.getElementById('bookingHistoryBtn').style.display = 'none';
-document.getElementById('customerHistoryBtn').style.display = 'none';
+updateManagementNavVisibility();
 document.getElementById('authModal').style.display = 'flex';
 document.getElementById('loginInput').value = '';
 document.getElementById('passwordInput').value = '';
@@ -3680,11 +3689,7 @@ if (refreshed && refreshed.subscription) {
 clubContext.subscription = resolveSubscriptionState(refreshed.subscription);
 }
 saveSessionAdmin(currentAdmin);
-if (document.getElementById('adminBtn')) {
-document.getElementById('adminBtn').style.display = canManageClub() ? 'inline-block' : 'none';
-document.getElementById('statsBtn').style.display = canManageClub() ? 'inline-block' : 'none';
-document.getElementById('logsBtn').style.display = isClubOwner() ? 'inline-block' : 'none';
-}
+updateManagementNavVisibility();
 }
 renderSubscriptionState();
 await syncStateFromBackend();

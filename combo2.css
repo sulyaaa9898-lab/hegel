@@ -178,7 +178,10 @@ body {
 }
 
 .sidebar-header {
-  padding: 24px 20px 20px;
+  height: 56px;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
   border-bottom: 1px solid #1e1e21;
   flex-shrink: 0;
 }
@@ -1433,7 +1436,7 @@ tr.booking-overdue:hover td {
 
 @media (max-width: 900px) {
   .sidebar { width: 64px; }
-  .sidebar-header { padding: 18px 12px 14px; }
+  .sidebar-header { height: 56px; padding: 0 12px; }
   .logo { font-size: 0; }
   .logo::first-letter { font-size: 0.875rem; }
   .nav-section-label { display: none; }
@@ -1461,6 +1464,7 @@ tr.booking-overdue:hover td {
   .panel .field { flex-direction: column; align-items: flex-start; }
   input, select { max-width: 100%; }
   .top-header { height: 48px; }
+  .sidebar-header { height: 48px; }
 }
 
 /* =========================================================
