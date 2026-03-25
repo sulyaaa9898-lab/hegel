@@ -1,4 +1,4 @@
-﻿﻿﻿const config = window.AppConfig;
+﻿﻿const config = window.AppConfig;
 const state = window.AppState;
 const storage = window.AppStorage;
 const authModule = window.AuthModule;
