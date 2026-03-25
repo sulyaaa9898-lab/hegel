@@ -353,17 +353,50 @@ const statsBtn = document.getElementById('statsBtn');
 const logsBtn = document.getElementById('logsBtn');
 const bookingHistoryBtn = document.getElementById('bookingHistoryBtn');
 const customerHistoryBtn = document.getElementById('customerHistoryBtn');
-const managementSectionLabel = document.getElementById('managementSectionLabel');
 
 if (adminBtn) adminBtn.style.display = canManage ? 'flex' : 'none';
 if (statsBtn) statsBtn.style.display = canManage ? 'flex' : 'none';
 if (logsBtn) logsBtn.style.display = ownerOnly ? 'flex' : 'none';
 if (bookingHistoryBtn) bookingHistoryBtn.style.display = ownerOnly ? 'flex' : 'none';
 if (customerHistoryBtn) customerHistoryBtn.style.display = ownerOnly ? 'flex' : 'none';
-
-if (managementSectionLabel) {
-managementSectionLabel.style.display = (canManage || ownerOnly) ? 'block' : 'none';
 }
+
+function expandSidebar() {
+const sidebar = document.querySelector('.sidebar');
+const appLayout = document.getElementById('userPanel');
+if (!sidebar) return;
+sidebar.classList.add('sidebar-expanded');
+if (appLayout) appLayout.classList.add('sidebar-pushed');
+}
+
+function collapseSidebar() {
+const sidebar = document.querySelector('.sidebar');
+const appLayout = document.getElementById('userPanel');
+if (!sidebar) return;
+sidebar.classList.remove('sidebar-expanded');
+if (appLayout) appLayout.classList.remove('sidebar-pushed');
+}
+
+function syncSidebarDrawerForViewport() {
+collapseSidebar();
+}
+
+function setupSidebarDrawer() {
+const sidebar = document.querySelector('.sidebar');
+
+if (sidebar) {
+sidebar.addEventListener('click', function() {
+if (!sidebar.classList.contains('sidebar-expanded')) {
+expandSidebar();
+}
+});
+}
+
+document.addEventListener('click', function(e) {
+if (sidebar && sidebar.classList.contains('sidebar-expanded') && !sidebar.contains(e.target)) {
+collapseSidebar();
+}
+});
 }
 
 function setAuthToken(token) {
@@ -1666,6 +1699,7 @@ dateSelect.value = getLocalDateString(getCurrentLocalDate());
 document.getElementById('addPanel').classList.remove('show');
 });
 document.addEventListener('DOMContentLoaded', () => {
+setupSidebarDrawer();
 const searchName = document.getElementById('searchName');
 const searchPC = document.getElementById('searchPC');
 const searchPhone = document.getElementById('searchPhone');
@@ -1726,6 +1760,7 @@ searchPanel.classList.remove('show');
 });
 document.addEventListener('keydown', (e) => {
 if (e.key === 'Escape') {
+if (isSidebarDrawerMode()) closeSidebarDrawer();
 const subLock = document.getElementById('subscriptionBlockModal');
 if (subLock && subLock.style.display === 'flex') return;
 document.getElementById('addPanel').classList.remove('show');
@@ -1762,6 +1797,7 @@ try {
 const userName = currentAdmin.isRoot ? ROOT_NAME : currentAdmin.name;
 document.getElementById('currentUser').textContent = userName;
 document.getElementById('userPanel').style.display = 'flex';
+syncSidebarDrawerForViewport();
 updateManagementNavVisibility();
 document.getElementById('authModal').style.display = 'none';
 renderSubscriptionState();
@@ -1869,6 +1905,7 @@ saveSessionAdmin(currentAdmin);
 const userName = currentAdmin.isRoot ? ROOT_NAME : user.name;
 document.getElementById('currentUser').textContent = userName;
 document.getElementById('userPanel').style.display = 'flex';
+syncSidebarDrawerForViewport();
 updateManagementNavVisibility();
 document.getElementById('authModal').style.display = 'none';
 renderSubscriptionState();
@@ -1968,6 +2005,7 @@ currentAdmin = null;
 storage.saveCurrentAdmin(state);
 saveSessionAdmin(null);
 document.getElementById('userPanel').style.display = 'none';
+closeSidebarDrawer();
 updateManagementNavVisibility();
 document.getElementById('authModal').style.display = 'flex';
 document.getElementById('loginInput').value = '';
@@ -3689,6 +3727,7 @@ if (refreshed && refreshed.subscription) {
 clubContext.subscription = resolveSubscriptionState(refreshed.subscription);
 }
 saveSessionAdmin(currentAdmin);
+syncSidebarDrawerForViewport();
 updateManagementNavVisibility();
 }
 renderSubscriptionState();

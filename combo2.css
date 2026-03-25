@@ -162,7 +162,8 @@ body {
    ========================================================= */
 
 .sidebar {
-  width: 220px;
+  width: 72px;
+  transition: width 0.25s ease;
   flex-shrink: 0;
   background: #111113;
   border-right: 1px solid #1e1e21;
@@ -177,50 +178,56 @@ body {
   overflow-x: hidden;
 }
 
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 99;
+}
+.sidebar-backdrop.active {
+  display: block;
+}
+
 .sidebar-header {
   height: 56px;
-  padding: 0 20px;
+  padding: 0 8px;
   display: flex;
+  justify-content: center;
   align-items: center;
   border-bottom: 1px solid #1e1e21;
   flex-shrink: 0;
 }
 
 .logo {
-  font-size: 0.8125rem;
+  font-size: 0.9375rem;
   font-weight: 700;
   color: #f4f4f5;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  text-shadow: none;
-  animation: none;
+  white-space: nowrap;
 }
 
 .sidebar-nav {
   flex: 1;
-  padding: 12px 10px;
+  padding: 22px 8px 10px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3.2px;
 }
 
 .nav-section-label {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  color: #52525b;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: 12px 10px 6px;
+  display: none;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
+  justify-content: center;
+  gap: 0;
+  padding: 12.1px 8px;
   border-radius: 7px;
   color: #71717a;
-  font-size: 0.8125rem;
+  font-size: 0;
   font-weight: 500;
   text-decoration: none;
   cursor: pointer;
@@ -249,8 +256,8 @@ body {
 }
 
 .nav-icon {
-  width: 16px;
-  height: 16px;
+  width: 23px;
+  height: 23px;
   opacity: 0.65;
   flex-shrink: 0;
   display: flex;
@@ -259,13 +266,75 @@ body {
   font-style: normal;
 }
 
+.nav-icon svg {
+  width: 21px;
+  height: 21px;
+}
+
 .nav-item.active .nav-icon,
 .nav-item:hover .nav-icon {
   opacity: 1;
 }
 
+/* NAV LABEL — hidden when sidebar collapsed, visible when expanded */
+.nav-label {
+  opacity: 0;
+  max-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  pointer-events: none;
+  transition: opacity 0.2s ease, max-width 0.25s ease;
+}
+
+/* SIDEBAR EXPANDED STATE */
+.sidebar.sidebar-expanded {
+  width: 240px;
+  overflow-y: auto;
+  box-shadow: 4px 0 32px rgba(0, 0, 0, 0.5);
+}
+
+.sidebar.sidebar-expanded .nav-label {
+  opacity: 1;
+  max-width: 180px;
+  pointer-events: auto;
+}
+
+.sidebar.sidebar-expanded .nav-item {
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 12.1px 14px;
+  font-size: 0.8125rem;
+}
+
+
+.sidebar.sidebar-expanded .user-meta {
+  opacity: 1;
+  max-height: 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar.sidebar-expanded .counter-wrap {
+  opacity: 1;
+  max-height: 30px;
+  display: flex;
+  align-items: center;
+}
+
+.sidebar.sidebar-expanded .btn-logout {
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  font-size: 0.8125rem;
+}
+
+.sidebar.sidebar-expanded .btn-logout::before {
+  flex-shrink: 0;
+}
+
 .sidebar-footer {
-  padding: 16px 16px 20px;
+  padding: 10px 8px;
   border-top: 1px solid #1e1e21;
   display: flex;
   flex-direction: column;
@@ -273,51 +342,25 @@ body {
   flex-shrink: 0;
 }
 
-.user-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.current-user {
-  color: #d4d4d8;
-  font-size: 0.8rem;
-  font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  text-shadow: none;
-}
-
-.user-time {
-  color: #52525b;
-  font-size: 0.75rem;
-  font-weight: 400;
-}
-
+.user-meta,
 .counter-wrap {
-  display: flex;
-  align-items: center;
-}
-
-.counter {
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: #52525b;
-  background: transparent;
-  padding: 0;
-  border: none;
-  border-radius: 0;
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
+  transition: opacity 0.2s ease, max-height 0.25s ease;
 }
 
 .btn-logout {
-  padding: 7px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
   border: 1px solid #2a2a2e;
   background: transparent;
   color: #71717a;
   border-radius: 7px;
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: 0;
   font-weight: 500;
   font-family: inherit;
   transition: color 0.15s, border-color 0.15s, background 0.15s;
@@ -325,6 +368,11 @@ body {
   letter-spacing: 0.01em;
   width: 100%;
   text-transform: none;
+}
+
+.btn-logout::before {
+  content: '\2192';
+  font-size: 16px;
 }
 
 .btn-logout:hover {
@@ -340,13 +388,16 @@ body {
    ========================================================= */
 
 .main-wrapper {
-  margin-left: 220px;
+  margin-left: 72px;
+  transition: margin-left 0.25s ease;
   flex: 1;
   display: flex;
   flex-direction: column;
   min-height: 100vh;
   min-width: 0;
 }
+
+
 
 /* =========================================================
    TOP HEADER
@@ -377,6 +428,10 @@ body {
   display: flex;
   align-items: center;
   gap: 16px;
+}
+
+.sidebar-toggle-btn {
+  display: none;
 }
 
 .page-title {
@@ -574,6 +629,11 @@ body {
   margin-top: 5px;
   flex-shrink: 0;
 }
+
+.app-layout.sidebar-pushed .main-wrapper {
+  margin-left: 240px;
+}
+
 
 .activity-dot.green  { background: #4ade80; box-shadow: 0 0 4px rgba(74,222,128,0.5); }
 .activity-dot.blue   { background: #60a5fa; box-shadow: 0 0 4px rgba(96,165,250,0.5); }
@@ -1435,22 +1495,7 @@ tr.booking-overdue:hover td {
    ========================================================= */
 
 @media (max-width: 900px) {
-  .sidebar { width: 64px; }
-  .sidebar-header { height: 56px; padding: 0 12px; }
-  .logo { font-size: 0; }
-  .logo::first-letter { font-size: 0.875rem; }
-  .nav-section-label { display: none; }
-  .nav-item {
-    padding: 10px;
-    justify-content: center;
-    gap: 0;
-  }
-  .nav-item span:not(.nav-icon) { display: none; }
-  .sidebar-footer .user-meta,
-  .sidebar-footer .counter-wrap { display: none; }
-  .sidebar-footer { padding: 10px 8px; }
-  .btn-logout { font-size: 0; padding: 10px; width: 100%; }
-  .main-wrapper { margin-left: 64px; }
+  .main-wrapper { margin-left: 72px; }
   .content-area { padding: 20px; }
   .stats-grid { grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)); gap: 10px; }
   .top-header { padding: 0 18px; }
@@ -1464,7 +1509,7 @@ tr.booking-overdue:hover td {
   .panel .field { flex-direction: column; align-items: flex-start; }
   input, select { max-width: 100%; }
   .top-header { height: 48px; }
-  .sidebar-header { height: 48px; }
+  .main-wrapper { margin-left: 72px; }
 }
 
 /* =========================================================
@@ -1515,6 +1560,10 @@ body {
   background: linear-gradient(180deg, #0b1020 0%, #090e1b 100%);
   border-right: 1px solid #1f2740;
   box-shadow: 10px 0 30px rgba(0, 0, 0, 0.28);
+}
+
+.sidebar-backdrop {
+  background: rgba(5, 10, 24, 0.6);
 }
 
 .sidebar-header,
