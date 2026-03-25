@@ -1,4 +1,4 @@
-﻿const config = window.AppConfig;
+﻿﻿﻿const config = window.AppConfig;
 const state = window.AppState;
 const storage = window.AppStorage;
 const authModule = window.AuthModule;
@@ -172,6 +172,8 @@ document.getElementById('guestsPage').style.display = 'none';
 if (!clubContext.psEnabled) {
 document.getElementById('psConsolesPage').style.display = 'none';
 }
+const dashActivePsCard = document.getElementById('dashActivePsCard');
+if (dashActivePsCard) dashActivePsCard.style.display = clubContext.psCapacity > 0 ? '' : 'none';
 
 if (currentPlatform === 'pc' && !clubContext.pcEnabled && clubContext.psEnabled) {
 switchPlatform('ps');
@@ -843,6 +845,8 @@ document.getElementById('mainContent').style.display = 'block';
 }
 function showGuestsPage() {
 if (currentPlatform !== 'pc') return; 
+const bookingsHeading = document.getElementById('bookingsHeading');
+if (bookingsHeading) bookingsHeading.style.display = 'none';
 document.querySelector('.controls-row').style.display = 'none';
 document.getElementById('addPanel').classList.remove('show');
 document.getElementById('searchPanel').classList.remove('show');
@@ -853,6 +857,8 @@ renderGuests();
 }
 function hideGuestsPage() {
 if (currentPlatform === 'pc') {
+const bookingsHeading = document.getElementById('bookingsHeading');
+if (bookingsHeading) bookingsHeading.style.display = 'flex';
 document.querySelector('.controls-row').style.display = 'flex';
 document.getElementById('guestsPage').style.display = 'none';
 document.getElementById('mainContent').style.display = 'block';
@@ -868,6 +874,14 @@ document.getElementById('mainContent').style.display = 'none';
 document.getElementById('donePage').style.display = 'none';
 document.getElementById('guestsPage').style.display = 'none';
 document.getElementById('psConsolesPage').style.display = 'none';
+const bookingsHeading = document.getElementById('bookingsHeading');
+const bookingsHeadingTitle = document.getElementById('bookingsHeadingTitle');
+const bookingsHeadingSub = document.getElementById('bookingsHeadingSub');
+if (bookingsHeading) bookingsHeading.style.display = 'flex';
+if (bookingsHeadingTitle) bookingsHeadingTitle.textContent = platform === 'pc' ? 'Бронирование ПК' : 'Бронирование PlayStation';
+if (bookingsHeadingSub) bookingsHeadingSub.textContent = platform === 'pc'
+? 'Управление активными бронированиями'
+: 'Управление активными сессиями PlayStation';
 const controlsRows = document.querySelectorAll('.controls-row');
 controlsRows.forEach(row => {
 if (row.getAttribute('data-platform') === 'pc') {
@@ -892,6 +906,7 @@ renderPSConsoles();
 updatePSCounter();
 }
 }
+
 applyPlatformVisibility();
 }
 function updatePCCounter() {
@@ -1378,8 +1393,35 @@ matches = matches && digits.slice(-4).includes(searchPhone.slice(-4));
 }
 if (!matches) return;
 const tr = document.createElement('tr');
+const uidTd = document.createElement('td');
+const bookingUid = String(b.booking_uid || '').trim().toUpperCase();
+if (bookingUid) {
+const uidBtn = document.createElement('button');
+uidBtn.type = 'button';
+uidBtn.className = 'audit-booking-link';
+uidBtn.textContent = bookingUid;
+uidBtn.addEventListener('click', function() {
+openBookingHistoryByUid(bookingUid);
+});
+uidTd.appendChild(uidBtn);
+} else {
+uidTd.textContent = '—';
+}
 const nameTd = document.createElement('td');
-nameTd.textContent = b.name;
+const customerName = String(b.name || '').trim();
+const customerPhone = String(b.phone || '').trim();
+if (customerName && customerPhone) {
+const nameBtn = document.createElement('button');
+nameBtn.type = 'button';
+nameBtn.className = 'audit-booking-link';
+nameBtn.textContent = customerName;
+nameBtn.addEventListener('click', function() {
+openCustomerHistoryByPhone(customerPhone, customerName);
+});
+nameTd.appendChild(nameBtn);
+} else {
+nameTd.textContent = customerName || '—';
+}
 const displayName = b.addedBy === 'Algaib' ? 'Султан' : b.addedBy;
 if (b.addedBy) {
 const addedDate = new Date(b.addedAt);
@@ -1415,6 +1457,7 @@ statusSpan.textContent = '✓ Пришёл';
 statusSpan.style.color = '#4caf50';
 }
 statusTd.appendChild(statusSpan);
+tr.appendChild(uidTd);
 tr.appendChild(nameTd);
 tr.appendChild(pcTd);
 tr.appendChild(timeTd);
@@ -2029,7 +2072,7 @@ if (!canManageClub()) {
 notify('❌ Только владелец клуба может управлять администраторами', 'Ошибка');
 return;
 }
-const inviteField = document.getElementById('adminInviteLink');
+const inviteField = document.getElementById('adminsPageInviteLink');
 if (inviteField) inviteField.value = '';
 try {
 const listFromApi = await apiRequest('/admins');
@@ -2047,7 +2090,17 @@ storage.saveAdmins(state);
 reportClientError('Не удалось загрузить список администраторов', error);
 return;
 }
-const list = document.getElementById('adminList');
+document.getElementById('dashboardSection').style.display = 'none';
+document.getElementById('bookingsSection').style.display = 'none';
+document.getElementById('logsSection').style.display = 'none';
+document.getElementById('bookingHistorySection').style.display = 'none';
+document.getElementById('customerHistorySection').style.display = 'none';
+document.getElementById('ownerStatsSection').style.display = 'none';
+document.getElementById('adminsSection').style.display = 'flex';
+document.querySelectorAll('.nav-item').forEach(function(el) { el.classList.remove('active'); });
+document.getElementById('adminBtn').classList.add('active');
+
+const list = document.getElementById('adminsPageList');
 list.innerHTML = '';
 admins.forEach(a => {
 const div = document.createElement('div');
@@ -2086,7 +2139,6 @@ div.appendChild(btn);
 }
 list.appendChild(div);
 });
-document.getElementById('adminsModal').style.display = 'flex';
 }
 function deleteAdmin(adminId) {
 if (!canManageClub()) {
@@ -2133,7 +2185,7 @@ const response = await apiRequest('/admins/invites', {
 method: 'POST',
 body: JSON.stringify({ club_id: clubContext.id })
 });
-const input = document.getElementById('adminInviteLink');
+const input = document.getElementById('adminsPageInviteLink');
 if (input) input.value = response.register_link || '';
 notify('✅ Invite для администратора создан', 'Успешно');
 } catch (error) {
@@ -2142,7 +2194,7 @@ notify(error.message || 'Ошибка создания invite', 'Ошибка');
 }
 
 function copyAdminInviteLink() {
-const input = document.getElementById('adminInviteLink');
+const input = document.getElementById('adminsPageInviteLink');
 const value = input ? String(input.value || '').trim() : '';
 if (!value) return;
 
@@ -2198,8 +2250,7 @@ return [
 { value: doneNoShow, label: 'Неявки' },
 { value: totalGuests, label: 'Гостей в рейтинге' },
 { value: totalAdmins, label: 'Админов клуба' },
-{ value: activePsSessions, label: 'Активные PS сеансы' },
-{ value: `${getCurrentPcCapacity()}/${getCurrentPsCapacity()}`, label: 'PC / PS мест' }
+...(clubContext.psCapacity > 0 ? [{ value: activePsSessions, label: 'Активные PS сеансы' }] : [])
 ];
 }
 function mapServerStatsToCards(stats) {
@@ -2212,8 +2263,7 @@ return [
 { value: Number(stats.done_no_show || 0), label: 'Неявки' },
 { value: Number(stats.guests_total || 0), label: 'Гостей в рейтинге' },
 { value: Number(stats.admins_total || 0), label: 'Админов клуба' },
-{ value: Number(stats.active_ps_sessions || 0), label: 'Активные PS сеансы' },
-{ value: `${Number(stats.pc_capacity || 0)}/${Number(stats.ps_capacity || 0)}`, label: 'PC / PS мест' }
+...(clubContext.psCapacity > 0 ? [{ value: Number(stats.active_ps_sessions || 0), label: 'Активные PS сеансы' }] : [])
 ];
 }
 async function showOwnerStats() {
@@ -2221,7 +2271,17 @@ if (!canManageClub()) {
 notify('❌ Только владелец клуба может смотреть статистику', 'Ошибка');
 return;
 }
-const content = document.getElementById('ownerStatsContent');
+document.getElementById('dashboardSection').style.display = 'none';
+document.getElementById('bookingsSection').style.display = 'none';
+document.getElementById('logsSection').style.display = 'none';
+document.getElementById('bookingHistorySection').style.display = 'none';
+document.getElementById('customerHistorySection').style.display = 'none';
+document.getElementById('adminsSection').style.display = 'none';
+document.getElementById('ownerStatsSection').style.display = 'flex';
+document.querySelectorAll('.nav-item').forEach(function(el) { el.classList.remove('active'); });
+document.getElementById('statsBtn').classList.add('active');
+
+const content = document.getElementById('ownerStatsPageContent');
 content.innerHTML = '';
 let cards = buildOwnerStats();
 try {
@@ -2235,7 +2295,6 @@ card.className = 'owner-stat-card';
 card.innerHTML = `<strong>${item.value}</strong><span>${item.label}</span>`;
 content.appendChild(card);
 });
-document.getElementById('ownerStatsModal').style.display = 'flex';
 }
 function closeOwnerStatsModal() {
 document.getElementById('ownerStatsModal').style.display = 'none';
@@ -2286,6 +2345,8 @@ document.getElementById('dashboardSection').style.display = 'none';
 document.getElementById('bookingsSection').style.display = 'none';
 document.getElementById('bookingHistorySection').style.display = 'none';
 document.getElementById('customerHistorySection').style.display = 'none';
+document.getElementById('ownerStatsSection').style.display = 'none';
+document.getElementById('adminsSection').style.display = 'none';
 document.getElementById('logsSection').style.display = 'flex';
 document.querySelectorAll('.nav-item').forEach(function(el) { el.classList.remove('active'); });
 document.getElementById('logsBtn').classList.add('active');
@@ -2305,6 +2366,8 @@ document.getElementById('dashboardSection').style.display = 'none';
 document.getElementById('bookingsSection').style.display = 'none';
 document.getElementById('logsSection').style.display = 'none';
 document.getElementById('customerHistorySection').style.display = 'none';
+document.getElementById('ownerStatsSection').style.display = 'none';
+document.getElementById('adminsSection').style.display = 'none';
 document.getElementById('bookingHistorySection').style.display = 'flex';
 document.querySelectorAll('.nav-item').forEach(function(el) { el.classList.remove('active'); });
 document.getElementById('bookingHistoryBtn').classList.add('active');
@@ -2338,6 +2401,8 @@ document.getElementById('dashboardSection').style.display = 'none';
 document.getElementById('bookingsSection').style.display = 'none';
 document.getElementById('logsSection').style.display = 'none';
 document.getElementById('bookingHistorySection').style.display = 'none';
+document.getElementById('ownerStatsSection').style.display = 'none';
+document.getElementById('adminsSection').style.display = 'none';
 document.getElementById('customerHistorySection').style.display = 'flex';
 document.querySelectorAll('.nav-item').forEach(function(el) { el.classList.remove('active'); });
 document.getElementById('customerHistoryBtn').classList.add('active');
@@ -2663,12 +2728,12 @@ const name = nameInput ? String(nameInput.value || '').trim() : '';
 customerHistoryCurrentPhone = phone;
 customerHistoryCurrentName = name;
 if (!phone) {
-tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;opacity:0.6;">Выберите клиента из логов</td></tr>';
+tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;opacity:0.6;">Выберите клиента из логов</td></tr>';
 emptyState.style.display = 'none';
 return;
 }
 
-tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:24px;opacity:0.5;">Загрузка…</td></tr>';
+tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;opacity:0.5;">Загрузка…</td></tr>';
 emptyState.style.display = 'none';
 
 try {
@@ -2693,6 +2758,7 @@ bookings.forEach(function(item) {
 const tr = document.createElement('tr');
 const dateText = item.date_value || '—';
 const statusText = item.deleted_at ? 'Удалена' : (item.status || '—');
+const accountText = item.admin_name || item.admin_login || item.created_by_name || item.created_by_login || '—';
 const bookingUid = String(item.booking_uid || '').trim().toUpperCase();
 const createdAt = item.created_at || '';
 const createdDate = createdAt ? createdAt.split('T')[0] : '—';
@@ -2707,13 +2773,14 @@ tr.innerHTML =
 '<td class="audit-cell-who">' + escapeHtml(item.name || '—') + '</td>' +
 '<td>' + escapeHtml(item.phone || '—') + '</td>' +
 '<td class="audit-cell-time">' + escapeHtml(createdDisplay) + '</td>' +
+'<td class="audit-cell-who">' + escapeHtml(accountText) + '</td>' +
 '<td>' + escapeHtml(item.platform_label || '—') + '</td>' +
 '<td class="audit-cell-time">' + dateTimeDisplay + '</td>' +
 '<td>' + escapeHtml(statusText) + '</td>';
 tbody.appendChild(tr);
 });
 } catch (err) {
-tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:#f87171;">' + escapeHtml(err.message || 'Ошибка загрузки истории клиента') + '</td></tr>';
+tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:#f87171;">' + escapeHtml(err.message || 'Ошибка загрузки истории клиента') + '</td></tr>';
 notify(err.message || 'Ошибка загрузки истории клиента', 'Ошибка');
 }
 }
@@ -2726,7 +2793,7 @@ const nameInput = document.getElementById('customerHistoryNameInput');
 if (phoneInput) phoneInput.value = '';
 if (nameInput) nameInput.value = '';
 const tbody = document.getElementById('customerHistoryTableBody');
-if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;opacity:0.6;">Выберите клиента из логов</td></tr>';
+if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;opacity:0.6;">Выберите клиента из логов</td></tr>';
 const emptyState = document.getElementById('customerHistoryEmptyState');
 if (emptyState) emptyState.style.display = 'none';
 }

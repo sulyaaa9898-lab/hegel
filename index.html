@@ -51,6 +51,8 @@
            document.getElementById('logsSection').style.display='none';
            document.getElementById('bookingHistorySection').style.display='none';
            document.getElementById('customerHistorySection').style.display='none';
+           document.getElementById('ownerStatsSection').style.display='none';
+           document.getElementById('adminsSection').style.display='none';
            if(window.refreshDashboard) window.refreshDashboard();
            return false;
          ">
@@ -74,6 +76,8 @@
            document.getElementById('logsSection').style.display='none';
            document.getElementById('bookingHistorySection').style.display='none';
            document.getElementById('customerHistorySection').style.display='none';
+           document.getElementById('ownerStatsSection').style.display='none';
+           document.getElementById('adminsSection').style.display='none';
            switchPlatform('pc');
            return false;
          ">
@@ -96,13 +100,23 @@
            document.getElementById('logsSection').style.display='none';
            document.getElementById('bookingHistorySection').style.display='none';
            document.getElementById('customerHistorySection').style.display='none';
+           document.getElementById('ownerStatsSection').style.display='none';
+           document.getElementById('adminsSection').style.display='none';
            switchPlatform('ps');
            return false;
          ">
         <span class="nav-icon">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.2" fill="none"/>
-            <circle cx="7" cy="7" r="2" fill="currentColor" opacity="0.5"/>
+            <!-- PS controller body: wide top + two center-bottom grips -->
+            <path d="M3 3 L11 3 Q13 3 13 5 L13 8.5 Q13 9.5 12 9.5 L11 9.5 L11 11.5 Q11 12.5 10 12.5 L9.5 12.5 Q8.5 12.5 8.5 11.5 L8.5 9.5 L5.5 9.5 L5.5 11.5 Q5.5 12.5 4.5 12.5 L4 12.5 Q3 12.5 3 11.5 L3 9.5 L2 9.5 Q1 9.5 1 8.5 L1 5 Q1 3 3 3 Z" stroke="currentColor" stroke-width="1.2" fill="none"/>
+            <!-- D-pad cross -->
+            <line x1="4.2" y1="5" x2="4.2" y2="8" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+            <line x1="2.7" y1="6.5" x2="5.7" y2="6.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+            <!-- 4 face buttons in diamond -->
+            <circle cx="10.3" cy="5.2" r="0.6" fill="currentColor"/>
+            <circle cx="11.5" cy="6.5" r="0.6" fill="currentColor"/>
+            <circle cx="10.3" cy="7.8" r="0.6" fill="currentColor"/>
+            <circle cx="9.1" cy="6.5" r="0.6" fill="currentColor"/>
           </svg>
         </span>
         <span class="nav-label">PlayStation</span>
@@ -117,6 +131,8 @@
            document.getElementById('logsSection').style.display='none';
            document.getElementById('bookingHistorySection').style.display='none';
            document.getElementById('customerHistorySection').style.display='none';
+           document.getElementById('ownerStatsSection').style.display='none';
+           document.getElementById('adminsSection').style.display='none';
            switchPlatform('pc');
            showGuestsPage();
            return false;
@@ -223,7 +239,7 @@
       <div id="dashboardSection" style="display:flex; flex-direction:column; gap:24px;">
 
         <div class="dashboard-heading">
-          <h2>Обзор</h2>
+          <h2>Панель клуба</h2>
           <span class="dashboard-sub">Статус клуба в реальном времени</span>
         </div>
 
@@ -233,7 +249,7 @@
             <div class="stat-card-value" id="dashActivePc">—</div>
             <div class="stat-card-label">Активные брони ПК</div>
           </div>
-          <div class="stat-card">
+          <div class="stat-card" id="dashActivePsCard">
             <div class="stat-card-icon">🎮</div>
             <div class="stat-card-value" id="dashActivePs">—</div>
             <div class="stat-card-label">Сессии Плейстейшн</div>
@@ -283,13 +299,17 @@
 
       <div id="bookingsSection" style="display:none; flex-direction:column; gap:16px;">
 
+        <div id="bookingsHeading" class="dashboard-heading">
+          <h2 id="bookingsHeadingTitle">Бронирование ПК</h2>
+          <span id="bookingsHeadingSub" class="dashboard-sub">Управление активными бронированиями</span>
+        </div>
+
         <div class="controls-row" data-platform="pc">
           <div class="left-buttons">
             <button type="button" onclick="toggleAddPanel()">+ Добавить бронь</button>
             <button type="button" onclick="toggleSearchPanel()">Поиск</button>
-            <button type="button" onclick="showGuestsPage()" style="margin-left:auto;">Рейтинг</button>
+            <button type="button" onclick="showDonePage()">Выполненные</button>
           </div>
-          <button type="button" onclick="showDonePage()">Выполненные</button>
         </div>
 
         <div id="addPanel" class="panel" data-platform="pc">
@@ -378,7 +398,7 @@
             <table>
               <thead>
                 <tr>
-                  <th>Имя</th><th>ПК</th><th>Время</th><th>Дата</th><th>Телефон</th><th>Предоплата</th><th>Статус</th>
+                  <th>ID брони</th><th>Имя</th><th>ПК</th><th>Время</th><th>Дата</th><th>Телефон</th><th>Предоплата</th><th>Статус</th>
                 </tr>
               </thead>
               <tbody id="doneTable"></tbody>
@@ -387,6 +407,10 @@
         </div>
 
         <div id="guestsPage" style="display:none;" data-platform="pc">
+          <div class="dashboard-heading" style="margin-bottom:12px;">
+            <h2>Карточки клиентов</h2>
+            <span class="dashboard-sub">Рейтинг и карточки клиентов клуба</span>
+          </div>
           <div style="display:flex;justify-content:space-between;margin-bottom:16px;align-items:center;gap:12px;">
             <input type="text" id="guestSearchInput" placeholder="Поиск по имени или телефону…" style="flex:1;max-width:360px;">
             <button type="button" onclick="hideGuestsPage()">← Назад</button>
@@ -574,6 +598,7 @@
                   <th>Клиент</th>
                   <th>Телефон</th>
                   <th>Добавлено</th>
+                  <th>Аккаунт</th>
                   <th>Тип</th>
                   <th>Дата и время</th>
                   <th>Статус</th>
@@ -584,6 +609,31 @@
           </div>
           <div id="customerHistoryEmptyState" class="audit-empty" style="display:none;">История клиента не найдена</div>
         </div>
+      </div>
+
+      <div id="ownerStatsSection" style="display:none; flex-direction:column; gap:24px;">
+        <div class="dashboard-heading">
+          <h2>Статистика клуба</h2>
+          <span class="dashboard-sub">Агрегированные показатели по бронированиям, гостям и загрузке</span>
+        </div>
+        <div id="ownerStatsPageContent" class="owner-stats-grid"></div>
+      </div>
+
+      <div id="adminsSection" style="display:none; flex-direction:column; gap:24px;">
+        <div class="dashboard-heading">
+          <h2>Администраторы</h2>
+          <span class="dashboard-sub">Управление администраторами клуба и invite-ссылкой</span>
+        </div>
+
+        <div class="section-card">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <button type="button" onclick="generateAdminInvite()">Сгенерировать invite для админа</button>
+            <button type="button" onclick="copyAdminInviteLink()">Копировать invite</button>
+          </div>
+          <input id="adminsPageInviteLink" type="text" readonly style="margin-top:10px;width:100%;" placeholder="/register?token=...">
+        </div>
+
+        <div id="adminsPageList" class="section-card" style="display:flex;flex-direction:column;gap:10px;"></div>
       </div>
     </div>
   </div>

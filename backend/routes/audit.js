@@ -342,11 +342,17 @@ router.get('/customer-history/:phone', async (req, res, next) => {
     }
 
     const scopeParams = [];
-    let pcQuery = `SELECT booking_uid, name, phone, date_value, time, status, created_at, updated_at, deleted_at
+    let pcQuery = `SELECT b.booking_uid, b.name, b.phone, b.date_value, b.time, b.status,
+                          b.created_at, b.updated_at, b.deleted_at,
+                          a.name AS admin_name, a.login AS admin_login
                    FROM bookings_pc b
+                   LEFT JOIN admins a ON a.id = b.admin_id
                    WHERE 1=1`;
-    let psQuery = `SELECT booking_uid, name, phone, date_value, time, status, created_at, updated_at, deleted_at
+    let psQuery = `SELECT b.booking_uid, b.name, b.phone, b.date_value, b.time, b.status,
+                          b.created_at, b.updated_at, b.deleted_at,
+                          a.name AS admin_name, a.login AS admin_login
                    FROM bookings_ps b
+                   LEFT JOIN admins a ON a.id = b.admin_id
                    WHERE 1=1`;
 
     if (!req.auth.isRoot && (req.auth.role === CLUB_OWNER_ROLE || req.auth.isClubOwner)) {
@@ -355,8 +361,8 @@ router.get('/customer-history/:phone', async (req, res, next) => {
       scopeParams.push(Number(req.auth.clubId));
     }
 
-    pcQuery += ' ORDER BY COALESCE(updated_at, created_at) DESC, id DESC LIMIT 5000';
-    psQuery += ' ORDER BY COALESCE(updated_at, created_at) DESC, id DESC LIMIT 5000';
+    pcQuery += ' ORDER BY COALESCE(b.updated_at, b.created_at) DESC, b.id DESC LIMIT 5000';
+    psQuery += ' ORDER BY COALESCE(b.updated_at, b.created_at) DESC, b.id DESC LIMIT 5000';
 
     const [pcRows, psRows] = await Promise.all([
       dbAll(db, pcQuery, scopeParams),
@@ -378,7 +384,9 @@ router.get('/customer-history/:phone', async (req, res, next) => {
         status: row.status || '',
         created_at: row.created_at || null,
         updated_at: row.updated_at || null,
-        deleted_at: row.deleted_at || null
+        deleted_at: row.deleted_at || null,
+        admin_name: row.admin_name || null,
+        admin_login: row.admin_login || null
       });
     });
 
@@ -395,9 +403,62 @@ router.get('/customer-history/:phone', async (req, res, next) => {
         status: row.status || '',
         created_at: row.created_at || null,
         updated_at: row.updated_at || null,
-        deleted_at: row.deleted_at || null
+        deleted_at: row.deleted_at || null,
+        admin_name: row.admin_name || null,
+        admin_login: row.admin_login || null
       });
     });
+
+    // Fallback for legacy rows without admin_id: derive account from audit trail by booking_uid.
+    const missingUids = Array.from(new Set(bookings
+      .filter((item) => !item.admin_name && !item.admin_login && item.booking_uid)
+      .map((item) => normalizeBookingUid(item.booking_uid))
+      .filter(Boolean)));
+
+    if (missingUids.length > 0) {
+      const placeholders = missingUids.map(() => '?').join(',');
+      const auditParams = [...missingUids];
+      let auditQuery = `SELECT l.booking_uid, l.action, l.admin_login, a.name AS admin_name, l.timestamp
+                        FROM audit_logs l
+                        LEFT JOIN admins a ON a.id = l.admin_id
+                        WHERE l.booking_uid IN (${placeholders})`;
+
+      if (!req.auth.isRoot && (req.auth.role === CLUB_OWNER_ROLE || req.auth.isClubOwner)) {
+        auditQuery += ' AND l.club_id = ?';
+        auditParams.push(Number(req.auth.clubId));
+      }
+
+      auditQuery += ' ORDER BY l.timestamp ASC';
+
+      const auditRows = await dbAll(db, auditQuery, auditParams);
+      const accountByUid = new Map();
+
+      auditRows.forEach((row) => {
+        const uid = normalizeBookingUid(row.booking_uid);
+        if (!uid) return;
+        const accountName = row.admin_name || row.admin_login || '';
+        if (!accountName) return;
+
+        const candidate = {
+          admin_name: row.admin_name || null,
+          admin_login: row.admin_login || null,
+          priority: (row.action === 'CREATE_BOOKING_PC' || row.action === 'CREATE_BOOKING_PS') ? 0 : 1
+        };
+
+        const existing = accountByUid.get(uid);
+        if (!existing || (existing.priority > candidate.priority)) {
+          accountByUid.set(uid, candidate);
+        }
+      });
+
+      bookings.forEach((item) => {
+        if (item.admin_name || item.admin_login || !item.booking_uid) return;
+        const account = accountByUid.get(normalizeBookingUid(item.booking_uid));
+        if (!account) return;
+        item.admin_name = account.admin_name || null;
+        item.admin_login = account.admin_login || null;
+      });
+    }
 
     bookings.sort((a, b) => {
       const left = new Date(b.updated_at || b.created_at || 0).getTime();

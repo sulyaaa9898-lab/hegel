@@ -430,6 +430,7 @@ body {
   gap: 16px;
 }
 
+
 .sidebar-toggle-btn {
   display: none;
 }
@@ -515,6 +516,7 @@ body {
 }
 
 .dashboard-sub {
+  display: none;
   font-size: 0.8rem;
   color: #52525b;
 }
@@ -677,6 +679,22 @@ body {
   gap: 8px;
   flex-wrap: wrap;
   align-items: center;
+}
+
+.controls-row[data-platform="pc"] {
+  justify-content: flex-start;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+}
+
+.controls-row[data-platform="pc"] .left-buttons {
+  background: linear-gradient(180deg, var(--c-surface) 0%, #121a2f 100%);
+  border: 1px solid var(--c-border);
+  border-radius: 10px;
+  box-shadow: 0 16px 38px rgba(4, 8, 18, 0.52);
+  padding: 13px 16px;
 }
 
 /* =========================================================
