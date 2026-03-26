@@ -337,6 +337,24 @@ body {
   align-items: center;
   justify-content: center;
   font-style: normal;
+  position: relative;
+}
+
+.nav-notification-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #ef4444;
+  border: 1px solid rgba(10, 15, 29, 0.9);
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
+  display: none;
+}
+
+.nav-notification-badge.is-visible {
+  display: block;
 }
 
 .nav-icon svg {
@@ -684,6 +702,13 @@ body {
   overflow: hidden;
 }
 
+.section-card-notifications {
+  width: min(100%, 760px);
+  max-width: 760px;
+  min-width: 0;
+  align-self: flex-start;
+}
+
 .section-card-compact {
   width: fit-content;
   max-width: min(100%, 1160px);
@@ -712,6 +737,13 @@ body {
   font-weight: 600;
   color: #a1a1aa;
   letter-spacing: 0.01em;
+}
+
+.section-card-notifications .section-card-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: #f4f4f5;
+  letter-spacing: -0.02em;
 }
 
 /* Recent Activity */
@@ -749,15 +781,22 @@ body {
 .activity-dot.green  { background: #4ade80; box-shadow: 0 0 4px rgba(74,222,128,0.5); }
 .activity-dot.blue   { background: #60a5fa; box-shadow: 0 0 4px rgba(96,165,250,0.5); }
 .activity-dot.yellow { background: #facc15; box-shadow: 0 0 4px rgba(250,204,21,0.5); }
+.activity-dot.orange { background: #fb923c; box-shadow: 0 0 4px rgba(251,146,60,0.5); }
 .activity-dot.red    { background: #f87171; box-shadow: 0 0 4px rgba(248,113,113,0.5); }
 .activity-dot.gray   { background: #52525b; }
 
-.activity-content { display: flex; flex-direction: column; gap: 2px; }
+.activity-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
 
 .activity-text {
   font-size: 0.8125rem;
   color: #a1a1aa;
   line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .activity-text strong { color: #d4d4d8; font-weight: 500; }
@@ -765,6 +804,55 @@ body {
 .activity-time {
   font-size: 0.7375rem;
   color: #52525b;
+}
+
+/* Notification items styling */
+.activity-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.activity-item-booking-time-reached {
+  border-left: none;
+  background: transparent;
+}
+
+.activity-item-booking-late {
+  border-left: none;
+  background: transparent;
+}
+
+.activity-item-ps-time-expired,
+.activity-item-ps-session-ending-soon {
+  border-left: none;
+  background: transparent;
+}
+
+.activity-item-booking-time-reached .activity-dot,
+.activity-item-booking-late .activity-dot,
+.activity-item-ps-time-expired .activity-dot,
+.activity-item-ps-session-ending-soon .activity-dot {
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0 5px rgba(255, 255, 255, 0.2);
+}
+
+@keyframes notificationSoftGlow {
+  0%,
+  100% {
+    background: rgba(255, 255, 255, 0.02);
+  }
+  50% {
+    background: rgba(255, 255, 255, 0.045);
+  }
+}
+
+.activity-item-booking-time-reached,
+.activity-item-booking-late,
+.activity-item-ps-time-expired,
+.activity-item-ps-session-ending-soon {
+  animation: notificationSoftGlow 3.6s ease-in-out infinite;
 }
 
 /* =========================================================
@@ -968,11 +1056,9 @@ tr:hover td { background: rgba(255, 255, 255, 0.025); }
 @keyframes overduePulse {
   0%, 100% {
     background-color: rgba(248, 113, 113, 0.045);
-    box-shadow: inset 3px 0 0 rgba(248, 113, 113, 0.28);
   }
   50% {
     background-color: rgba(248, 113, 113, 0.085);
-    box-shadow: inset 3px 0 0 rgba(248, 113, 113, 0.48);
   }
 }
 
@@ -990,12 +1076,18 @@ tr.booking-overdue:hover td {
 
 .booking-actions-cell {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 5px;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
 }
 
 .booking-remind-inline {
+  order: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 5px 9px;
   font-size: 0.75rem;
   line-height: 1;
@@ -1130,6 +1222,7 @@ tr.booking-overdue:hover td {
    ========================================================= */
 
 .action-dropdown {
+  order: 1;
   position: relative;
   display: inline-block;
 }
@@ -1492,30 +1585,440 @@ tr.booking-overdue:hover td {
    OWNER STATS
    ========================================================= */
 
+.owner-analytics-cards {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+
+.owner-analytics-card {
+  flex: 1;
+  min-width: 320px;
+  max-width: 400px;
+  overflow: hidden;
+}
+
 .owner-stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
-  gap: 10px;
-  margin-top: 14px;
+  grid-template-columns: repeat(2, minmax(160px, 1fr));
+  gap: 14px;
+  margin-top: 0;
+  max-width: 700px;
+  width: 100%;
+}
+
+.owner-stats-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.owner-stats-insights {
+  grid-column: 1;
+  grid-row: 1;
+  overflow: hidden;
+}
+
+.owner-insights-content {
+  padding: 12px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.owner-insight-block {
+  border: 1px solid #2a2a2e;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 10px 12px;
+}
+
+.owner-insight-title {
+  font-size: 0.775rem;
+  color: #a1a1aa;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.owner-top-list,
+.owner-days-list,
+.owner-clients-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.owner-top-list li,
+.owner-days-list li,
+.owner-clients-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8125rem;
+  color: #d4d4d8;
+}
+
+.owner-top-list li strong,
+.owner-days-list li strong,
+.owner-clients-list li strong {
+  color: #f4f4f5;
+  font-weight: 700;
+}
+
+.owner-clients-list .audit-booking-link {
+  font-size: 0.8125rem;
+  color: #c7d2fe;
+}
+
+.owner-clients-list .audit-booking-link:hover {
+  color: #e0e7ff;
+}
+
+.owner-insight-peak {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #f4f4f5;
+  letter-spacing: -0.01em;
+}
+
+.owner-insight-sub,
+.owner-insight-empty {
+  font-size: 0.775rem;
+  color: #71717a;
 }
 
 .owner-stat-card {
-  padding: 14px 16px;
-  border-radius: 10px;
+  cursor: default;
+}
+
+.owner-stat-card.stat-card:hover {
+  transform: none;
+  border-color: #2a2a2e;
+  box-shadow: none;
+}
+
+.owner-stat-card .stat-card-icon {
+  margin-bottom: 10px;
+}
+
+/* Accordion Styles */
+.owner-insights-accordion {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.owner-accordion-box {
   border: 1px solid #2a2a2e;
-  background: #111113;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  overflow: hidden;
+  transition: all 0.2s ease;
 }
 
-.owner-stat-card strong {
-  display: block;
-  font-size: 1.375rem;
-  color: #f4f4f5;
-  margin-bottom: 5px;
+.owner-accordion-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 12px;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.2s ease;
+}
+
+.owner-accordion-header:hover {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+.owner-accordion-icon {
+  display: inline-block;
+  width: 16px;
+  text-align: center;
+  color: #a1a1aa;
+  font-size: 0.85rem;
+  transition: transform 0.2s ease;
+}
+
+.owner-accordion-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #a1a1aa;
+  flex: 1;
+}
+
+.owner-accordion-content {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+  padding: 0 12px 12px;
+}
+
+.owner-accordion-toggle {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.owner-time-toggle {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #2a2a2e;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+  color: #a1a1aa;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.owner-time-toggle:hover {
+  border-color: #3a3a3e;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.owner-time-toggle.active {
+  border-color: #c7d2fe;
+  background: rgba(199, 210, 254, 0.1);
+  color: #e0e7ff;
+}
+
+.owner-time-toggle-inline {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.owner-time-toggle-small {
+  flex: 1;
+  padding: 5px 8px;
+  border: 1px solid #2a2a2e;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.02);
+  color: #a1a1aa;
+  font-size: 0.65rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.owner-time-toggle-small:hover {
+  border-color: #3a3a3e;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.owner-time-toggle-small.active {
+  border-color: #c7d2fe;
+  background: rgba(199, 210, 254, 0.1);
+  color: #e0e7ff;
+}
+
+.owner-pcs-month-inline,
+.owner-pcs-all-time-inline {
+  transition: opacity 0.2s ease;
+}
+
+.owner-pcs-week-inline,
+.owner-pcs-month-inline,
+.owner-pcs-all-time-inline {
+  transition: opacity 0.2s ease;
+}
+
+.owner-weekly-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.owner-weekly-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 6px;
+  border: 1px solid #2a2a2e;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.owner-weekly-day.is-current {
+  border-color: #c7d2fe;
+  background: rgba(199, 210, 254, 0.15);
+  box-shadow: inset 0 0 8px rgba(199, 210, 254, 0.2);
+}
+
+.owner-weekly-name {
+  font-size: 0.7rem;
+  color: #a1a1aa;
+  font-weight: 500;
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.owner-weekly-count {
+  font-size: 1.1rem;
   font-weight: 700;
-  letter-spacing: -0.03em;
+  color: #f4f4f5;
 }
 
-.owner-stat-card span { font-size: 0.775rem; color: #71717a; }
+.owner-peak-info {
+  padding: 12px;
+  border-top: 1px solid #2a2a2e;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.01);
+}
+
+.owner-peak-label {
+  font-size: 0.7rem;
+  color: #a1a1aa;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.owner-peak-time {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #e0e7ff;
+  margin-bottom: 4px;
+}
+
+.owner-peak-count {
+  font-size: 0.75rem;
+  color: #71717a;
+}
+
+.owner-rating-section {
+  margin-bottom: 14px;
+}
+
+.owner-rating-section:last-child {
+  margin-bottom: 0;
+}
+
+.owner-rating-label {
+  font-size: 0.75rem;
+  color: #a1a1aa;
+  font-weight: 600;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Responsive Accordion */
+@media (max-width: 1400px) {
+  .owner-analytics-cards {
+    flex-wrap: wrap;
+  }
+
+  .owner-analytics-card {
+    min-width: 280px;
+    flex: 1 1 calc(33.333% - 16px);
+  }
+}
+
+@media (max-width: 1024px) {
+  .owner-analytics-cards {
+    flex-wrap: wrap;
+    flex-direction: row;
+  }
+
+  .owner-analytics-card {
+    min-width: 300px;
+    flex: 1 1 calc(50% - 8px);
+  }
+
+  .owner-stats-layout {
+    flex-direction: column;
+  }
+
+  .owner-stats-grid {
+    grid-template-columns: repeat(2, minmax(160px, 1fr));
+  }
+
+  .owner-accordion-box {
+    font-size: 0.9rem;
+  }
+
+  .owner-weekly-grid {
+    grid-template-columns: repeat(7, 1fr);
+    gap: 6px;
+  }
+
+  .owner-weekly-day {
+    padding: 8px 4px;
+  }
+
+  .owner-weekly-name {
+    font-size: 0.65rem;
+  }
+
+  .owner-weekly-count {
+    font-size: 1rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .owner-analytics-cards {
+    flex-direction: column;
+  }
+
+  .owner-analytics-card {
+    min-width: 100%;
+    flex: 1 1 100%;
+    max-width: 100%;
+  }
+
+  .owner-stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .owner-weekly-grid {
+    grid-template-columns: repeat(7, 1fr);
+    gap: 5px;
+  }
+
+  .owner-weekly-day {
+    padding: 6px 3px;
+  }
+
+  .owner-weekly-name {
+    font-size: 0.6rem;
+  }
+
+  .owner-weekly-count {
+    font-size: 0.9rem;
+  }
+
+  .owner-top-list li,
+  .owner-days-list li,
+  .owner-clients-list li {
+    font-size: 0.75rem;
+  }
+
+  .owner-time-toggle-inline {
+    flex-direction: row;
+    gap: 6px;
+  }
+
+  .owner-time-toggle-small {
+    width: auto;
+    flex: 1;
+  }
+}
 
 /* =========================================================
    PLAYSTATION
@@ -1726,6 +2229,16 @@ tr.booking-overdue:hover td {
   .section-card-compact--narrow,
   .section-card-compact--logs {
     width: 100%;
+  }
+  .owner-stats-layout {
+    grid-template-columns: 1fr;
+  }
+  .owner-stats-grid,
+  .owner-stats-insights {
+    grid-column: auto;
+  }
+  .owner-stats-grid {
+    grid-template-columns: 1fr;
   }
   .filter-field,
   .filter-field--md,

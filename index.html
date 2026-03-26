@@ -63,6 +63,7 @@
             <rect x="1" y="8" width="5" height="5" rx="1" fill="currentColor" opacity="0.7"/>
             <rect x="8" y="8" width="5" height="5" rx="1" fill="currentColor" opacity="0.7"/>
           </svg>
+          <span id="dashNotifBadge" class="nav-notification-badge"></span>
         </span>
         <span class="nav-label">Dashboard</span>
       </a>
@@ -79,6 +80,7 @@
            document.getElementById('ownerStatsSection').style.display='none';
            document.getElementById('adminsSection').style.display='none';
            switchPlatform('pc');
+           if(window.resetPcTableFilters) window.resetPcTableFilters();
            return false;
          ">
         <span class="nav-icon">
@@ -227,7 +229,7 @@
       </div>
       <div class="header-right">
         <div class="platform-hooks" style="display:none;">
-          <button id="platformPcBtn" class="platform-btn active" type="button" onclick="switchPlatform('pc')">🖥 ПК</button>
+          <button id="platformPcBtn" class="platform-btn active" type="button" onclick="switchPlatform('pc'); if(window.resetPcTableFilters) window.resetPcTableFilters();">🖥 ПК</button>
           <button id="platformPsBtn" class="platform-btn" type="button" onclick="switchPlatform('ps')">🎮 Плейстейшн</button>
         </div>
       </div>
@@ -295,26 +297,11 @@
         </div>
 
         <div class="dashboard-bottom">
-          <div class="section-card">
+          <div class="section-card section-card-notifications">
             <div class="section-card-header">
               <span class="section-card-title">Уведомления</span>
             </div>
-            <div class="activity-list" id="activityList">
-              <div class="activity-item">
-                <span class="activity-dot green"></span>
-                <div class="activity-content">
-                  <div class="activity-text"><strong>Панель клуба загружена</strong></div>
-                  <div class="activity-time">только что</div>
-                </div>
-              </div>
-              <div class="activity-item">
-                <span class="activity-dot gray"></span>
-                <div class="activity-content">
-                  <div class="activity-text">Ожидание событий…</div>
-                  <div class="activity-time">—</div>
-                </div>
-              </div>
-            </div>
+            <div class="activity-list" id="activityList"></div>
           </div>
 
         </div>
@@ -640,7 +627,29 @@
           <h2>Статистика клуба</h2>
           <span class="dashboard-sub">Агрегированные показатели по бронированиям, гостям и загрузке</span>
         </div>
-        <div id="ownerStatsPageContent" class="owner-stats-grid"></div>
+        <div class="owner-analytics-cards">
+          <div class="section-card owner-analytics-card">
+            <div class="section-card-header">
+              <span class="section-card-title">Рейтинги гостей</span>
+            </div>
+            <div id="ownerAnalyticsCard2" class="owner-insights-content"></div>
+          </div>
+          <div class="section-card owner-analytics-card">
+            <div class="section-card-header">
+              <span class="section-card-title">ТОП 10 компьютеров</span>
+            </div>
+            <div id="ownerAnalyticsCard1" class="owner-insights-content"></div>
+          </div>
+          <div class="section-card owner-analytics-card">
+            <div class="section-card-header">
+              <span class="section-card-title">Бронирования на неделю</span>
+            </div>
+            <div id="ownerAnalyticsCard3" class="owner-insights-content"></div>
+          </div>
+        </div>
+        <div class="owner-stats-layout">
+          <div id="ownerStatsPageContent" class="owner-stats-grid"></div>
+        </div>
       </div>
 
       <div id="adminsSection" class="admins-section" style="display:none;">

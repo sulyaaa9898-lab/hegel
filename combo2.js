@@ -18,6 +18,21 @@ let pendingForceAdminLogin = null;
 let realtimeSyncIntervalId = null;
 let realtimeSyncInFlight = false;
 const REALTIME_SYNC_MS = 10000;
+
+// System for monitoring notifications
+let dashboardNotifications = [];
+const BOOKING_NOTIFICATION_CHECK_MS = 5000;
+let bookingNotificationIntervalId = null;
+const MAX_DASHBOARD_NOTIFICATIONS = 10;
+const NOTIFICATION_TIMESTAMPS_KEY = 'cyber_notification_timestamps_v1';
+const LATE_SUMMARY_TIMESTAMP_KEY = 'booking-late-summary';
+
+const notificationTypes = {
+  BOOKING_LATE: 'booking-late',
+  PS_TIME_EXPIRED: 'ps-time-expired',
+  PS_SESSION_ENDING_SOON: 'ps-session-ending-soon'
+};
+
 const inviteContext = {
 token: '',
 mode: null,
@@ -756,6 +771,320 @@ window.addEventListener('focus', () => {
 runRealtimeSyncTick();
 });
 
+// ===== NOTIFICATION SYSTEM =====
+function readNotificationTimestamps() {
+  try {
+    const raw = localStorage.getItem(NOTIFICATION_TIMESTAMPS_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch (_) {
+    return {};
+  }
+}
+
+function writeNotificationTimestamps(map) {
+  try {
+    localStorage.setItem(NOTIFICATION_TIMESTAMPS_KEY, JSON.stringify(map));
+  } catch (_) {
+  }
+}
+
+function buildPsExpiredTimestampKey(psId) {
+  return `ps-expired-${Number(psId)}`;
+}
+
+function getOrCreateNotificationTimestamp(key) {
+  const map = readNotificationTimestamps();
+  const existing = map[key];
+  if (existing) {
+    const date = new Date(existing);
+    if (!Number.isNaN(date.getTime())) return date;
+  }
+  const nowIso = new Date().toISOString();
+  map[key] = nowIso;
+  writeNotificationTimestamps(map);
+  return new Date(nowIso);
+}
+
+function clearNotificationTimestamp(key) {
+  const map = readNotificationTimestamps();
+  if (!Object.prototype.hasOwnProperty.call(map, key)) return;
+  delete map[key];
+  writeNotificationTimestamps(map);
+}
+
+function addNotification(type, message, booking = null, ps = null) {
+  const notificationPsId = ps && ps.id ? Number(ps.id) : null;
+  let timestamp = new Date();
+  if (type === notificationTypes.BOOKING_LATE) {
+    timestamp = getOrCreateNotificationTimestamp(LATE_SUMMARY_TIMESTAMP_KEY);
+  } else if (type === notificationTypes.PS_TIME_EXPIRED && notificationPsId) {
+    timestamp = getOrCreateNotificationTimestamp(buildPsExpiredTimestampKey(notificationPsId));
+  }
+
+  const notification = {
+    id: Date.now() + Math.random(),
+    type,
+    message,
+    booking,
+    ps,
+    psId: notificationPsId,
+    timestamp
+  };
+  
+  dashboardNotifications.unshift(notification);
+  if (dashboardNotifications.length > MAX_DASHBOARD_NOTIFICATIONS) {
+    dashboardNotifications = dashboardNotifications.slice(0, MAX_DASHBOARD_NOTIFICATIONS);
+  }
+  
+  renderNotifications();
+}
+
+function removeNotification(notificationId) {
+  dashboardNotifications = dashboardNotifications.filter(n => n.id !== notificationId);
+  renderNotifications();
+}
+
+// Remove notifications by booking ID when booking is completed or deleted
+function removeNotificationsByBookingId(bookingId) {
+  dashboardNotifications = dashboardNotifications.filter(n => {
+    if (n.booking && n.booking.id === bookingId) {
+      return false;
+    }
+    return true;
+  });
+  // Recalculate aggregated booking notifications immediately (without waiting interval).
+  checkBookingNotifications();
+  renderNotifications();
+}
+
+// Remove notifications by PS ID when session ends
+function removeNotificationsByPsId(psId) {
+  const targetPsId = Number(psId);
+  clearNotificationTimestamp(buildPsExpiredTimestampKey(targetPsId));
+  dashboardNotifications = dashboardNotifications.filter(n => {
+    const notificationPsId = Number(n.psId || (n.ps && n.ps.id));
+    if (notificationPsId && notificationPsId === targetPsId) {
+      return false;
+    }
+    return true;
+  });
+  renderNotifications();
+}
+
+function syncPsExpiredNotifications() {
+  const expiredPsIds = new Set(
+    psConsoles
+      .filter((ps) => ps && ps.status === 'expired')
+      .map((ps) => Number(ps.id))
+      .filter((id) => Number.isInteger(id) && id > 0)
+  );
+
+  const beforeLength = dashboardNotifications.length;
+  dashboardNotifications = dashboardNotifications.filter((n) => {
+    if (n.type !== notificationTypes.PS_TIME_EXPIRED) return true;
+    const notificationPsId = Number(n.psId || (n.ps && n.ps.id));
+    if (!expiredPsIds.has(notificationPsId)) {
+      clearNotificationTimestamp(buildPsExpiredTimestampKey(notificationPsId));
+      return false;
+    }
+    return expiredPsIds.has(notificationPsId);
+  });
+
+  psConsoles.forEach((ps) => {
+    if (!ps || ps.status !== 'expired') return;
+    const id = Number(ps.id);
+    if (!Number.isInteger(id) || id <= 0) return;
+    const exists = dashboardNotifications.some((n) => {
+      if (n.type !== notificationTypes.PS_TIME_EXPIRED) return false;
+      return Number(n.psId || (n.ps && n.ps.id)) === id;
+    });
+    if (!exists) {
+      dashboardNotifications.unshift({
+        id: Date.now() + Math.random(),
+        type: notificationTypes.PS_TIME_EXPIRED,
+        message: `PlayStation ${id} - время сессии истекло`,
+        booking: null,
+        ps,
+        psId: id,
+        timestamp: getOrCreateNotificationTimestamp(buildPsExpiredTimestampKey(id))
+      });
+    }
+  });
+
+  if (dashboardNotifications.length > MAX_DASHBOARD_NOTIFICATIONS) {
+    dashboardNotifications = dashboardNotifications.slice(0, MAX_DASHBOARD_NOTIFICATIONS);
+  }
+
+  if (beforeLength !== dashboardNotifications.length || expiredPsIds.size > 0) {
+    renderNotifications();
+  }
+}
+
+function getNotificationDotColor(type) {
+  switch (type) {
+    case notificationTypes.BOOKING_LATE:
+      return 'orange';
+    case notificationTypes.PS_TIME_EXPIRED:
+    case notificationTypes.PS_SESSION_ENDING_SOON:
+      return 'red';
+    default:
+      return 'gray';
+  }
+}
+
+function updateDashboardNotificationBadge() {
+  const badge = document.getElementById('dashNotifBadge');
+  if (!badge) return;
+  if (dashboardNotifications.length > 0) {
+    badge.classList.add('is-visible');
+  } else {
+    badge.classList.remove('is-visible');
+  }
+}
+
+function renderNotifications() {
+  const activityList = document.getElementById('activityList');
+  updateDashboardNotificationBadge();
+  if (!activityList) return;
+  
+  if (dashboardNotifications.length === 0) {
+    activityList.innerHTML = `
+      <div class="activity-item">
+        <span class="activity-dot gray"></span>
+        <div class="activity-content">
+          <div class="activity-text">Нет уведомлений</div>
+        </div>
+      </div>
+    `;
+    return;
+  }
+  
+  activityList.innerHTML = dashboardNotifications.map(notification => {
+    const timeStr = formatTimeDifference(notification.timestamp);
+    const dotColor = getNotificationDotColor(notification.type);
+    const isLateSummary = notification.type === notificationTypes.BOOKING_LATE;
+    const isPsNotification = notification.type === notificationTypes.PS_TIME_EXPIRED
+      || notification.type === notificationTypes.PS_SESSION_ENDING_SOON;
+    const clickAttr = isLateSummary
+      ? 'onclick="window.openLateBookingsFromNotification && window.openLateBookingsFromNotification()" style="cursor:pointer;"'
+      : (isPsNotification
+        ? 'onclick="window.openPsTab && window.openPsTab()" style="cursor:pointer;"'
+        : '');
+    
+    let content = `
+      <div class="activity-item activity-item-${notification.type}" ${clickAttr}>
+        <span class="activity-dot ${dotColor}"></span>
+        <div class="activity-content">
+          <div class="activity-text">${notification.message}</div>
+          <div class="activity-time">${timeStr}</div>
+        </div>
+    `;
+    
+    content += `
+      </div>
+    `;
+    
+    return content;
+  }).join('');
+}
+
+function formatTimeDifference(pastDate) {
+  const now = new Date();
+  const diff = now - pastDate;
+  const seconds = Math.floor(diff / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  
+  if (seconds < 60) return 'только что';
+  if (minutes < 60) return `${minutes} ${getMinutesLabel(minutes)} назад`;
+  if (hours < 24) return `${hours} ${getHoursLabel(hours)} назад`;
+  return pastDate.toLocaleString('ru-RU');
+}
+
+function getMinutesLabel(num) {
+  if (num % 10 === 1 && num !== 11) return 'минута';
+  if ([2, 3, 4].includes(num % 10) && ![12, 13, 14].includes(num)) return 'минуты';
+  return 'минут';
+}
+
+function getHoursLabel(num) {
+  if (num % 10 === 1 && num !== 11) return 'час';
+  if ([2, 3, 4].includes(num % 10) && ![12, 13, 14].includes(num)) return 'часа';
+  return 'часов';
+}
+
+function getBookingLateMinutes(booking, now = new Date()) {
+  if (!booking || booking.arrived) return 0;
+  const bookingTime = new Date(`${booking.dateValue}T${booking.time}:00`);
+  if (Number.isNaN(bookingTime.getTime())) return 0;
+  const diffMs = now.getTime() - bookingTime.getTime();
+  if (diffMs <= 0) return 0;
+  return Math.floor(diffMs / 60000);
+}
+
+function checkBookingNotifications() {
+  const now = new Date();
+  const lateBookings = bookings.filter((booking) => getBookingLateMinutes(booking, now) >= 1);
+  const existingLateSummary = dashboardNotifications.find((n) => n.type === notificationTypes.BOOKING_LATE);
+
+  if (lateBookings.length === 0) {
+    if (existingLateSummary) {
+      dashboardNotifications = dashboardNotifications.filter((n) => n.type !== notificationTypes.BOOKING_LATE);
+      clearNotificationTimestamp(LATE_SUMMARY_TIMESTAMP_KEY);
+      renderNotifications();
+    }
+    return;
+  }
+
+  const count = lateBookings.length;
+  const message = count === 1
+    ? 'Есть клиент, который опаздывает по брони'
+    : `Есть клиенты, которые опаздывают по брони (${count})`;
+
+  if (existingLateSummary) {
+    existingLateSummary.message = message;
+    renderNotifications();
+  } else {
+    addNotification(notificationTypes.BOOKING_LATE, message);
+  }
+}
+
+function getLateMinutesLabel(num) {
+  if (num % 10 === 1 && num !== 11) return 'минуту';
+  if ([2, 3, 4].includes(num % 10) && ![12, 13, 14].includes(num)) return 'минуты';
+  return 'минут';
+}
+
+function startBookingNotificationMonitoring() {
+  if (bookingNotificationIntervalId) return;
+  renderNotifications();
+  syncPsExpiredNotifications();
+  checkBookingNotifications();
+  bookingNotificationIntervalId = setInterval(() => {
+    syncPsExpiredNotifications();
+    checkBookingNotifications();
+  }, BOOKING_NOTIFICATION_CHECK_MS);
+}
+
+function stopBookingNotificationMonitoring() {
+  if (bookingNotificationIntervalId) {
+    clearInterval(bookingNotificationIntervalId);
+    bookingNotificationIntervalId = null;
+  }
+}
+
+// Send WhatsApp reminder
+window.sendReminder = function(phone, name, time, pc) {
+  if (!phone) return;
+  const message = `Напоминаем: Ваша бронь на ${time} на ПК ${pc}. Ждем Вас! 😊`;
+  const waLink = getWhatsAppLink(phone, message);
+  if (waLink) {
+    window.open(waLink, '_blank', 'noopener,noreferrer');
+  }
+};
+
 function sendWhatsAppBooking(name, pc, time, dateDisplay, phone, prepay) {
 const phoneDigits = phone.replace(/\D/g, '');
 if (phoneDigits.length !== 11) return;
@@ -982,11 +1311,28 @@ document.getElementById('searchName').value = "";
 document.getElementById('searchPC').value = "";
 document.getElementById('searchPhone').value = "";
 window._filterPrepayOnly = false;
+window._filterLateOnly = false;
 renderTable();
 updatePCCounter();
 }
 
+window.resetPcTableFilters = function() {
+  const searchDate = document.getElementById('searchDate');
+  const searchName = document.getElementById('searchName');
+  const searchPC = document.getElementById('searchPC');
+  const searchPhone = document.getElementById('searchPhone');
+  if (searchDate) searchDate.value = '';
+  if (searchName) searchName.value = '';
+  if (searchPC) searchPC.value = '';
+  if (searchPhone) searchPhone.value = '';
+  window._filterPrepayOnly = false;
+  window._filterLateOnly = false;
+  renderTable();
+  updateCounter();
+};
+
 window._filterPrepayOnly = false;
+window._filterLateOnly = false;
 
 window.openPcTabToday = function(prepayOnly) {
   document.querySelectorAll('.nav-item').forEach(function(el) { el.classList.remove('active'); });
@@ -997,6 +1343,7 @@ window.openPcTabToday = function(prepayOnly) {
   ['logsSection','bookingHistorySection','customerHistorySection','ownerStatsSection','adminsSection']
     .forEach(function(id) { var el = document.getElementById(id); if (el) el.style.display = 'none'; });
   window._filterPrepayOnly = !!prepayOnly;
+  window._filterLateOnly = false;
   switchPlatform('pc');
   var todayStr = getLocalDateString(getCurrentLocalDate());
   var searchDate = document.getElementById('searchDate');
@@ -1025,7 +1372,31 @@ window.openAllPcTab = function() {
   ['logsSection','bookingHistorySection','customerHistorySection','ownerStatsSection','adminsSection']
     .forEach(function(id) { var el = document.getElementById(id); if (el) el.style.display = 'none'; });
   window._filterPrepayOnly = false;
+  window._filterLateOnly = false;
   switchPlatform('pc');
+  var searchDate = document.getElementById('searchDate');
+  if (searchDate) searchDate.value = '';
+  renderTable();
+  updateCounter();
+};
+
+window.openLateBookingsFromNotification = function() {
+  document.querySelectorAll('.nav-item').forEach(function(el) { el.classList.remove('active'); });
+  var navPC = document.getElementById('navPC');
+  if (navPC) navPC.classList.add('active');
+  document.getElementById('dashboardSection').style.display = 'none';
+  document.getElementById('bookingsSection').style.display = 'flex';
+  ['logsSection','bookingHistorySection','customerHistorySection','ownerStatsSection','adminsSection']
+    .forEach(function(id) { var el = document.getElementById(id); if (el) el.style.display = 'none'; });
+  switchPlatform('pc');
+  window._filterPrepayOnly = false;
+  window._filterLateOnly = true;
+  var searchName = document.getElementById('searchName');
+  if (searchName) searchName.value = '';
+  var searchPC = document.getElementById('searchPC');
+  if (searchPC) searchPC.value = '';
+  var searchPhone = document.getElementById('searchPhone');
+  if (searchPhone) searchPhone.value = '';
   var searchDate = document.getElementById('searchDate');
   if (searchDate) searchDate.value = '';
   renderTable();
@@ -1133,11 +1504,15 @@ return result;
 function getPhoneDigits() {
 return cleanPhone(phoneInput.value);
 }
-function getWhatsAppLink(phone) {
+function getWhatsAppLink(phone, message = null) {
 let digits = phone.replace(/\D/g, '');
 if (digits.startsWith('8')) digits = '7' + digits.slice(1);
 if (digits.startsWith('7') && digits.length === 11) {
-return `whatsapp://send?phone=${digits}`;
+  let url = `whatsapp://send?phone=${digits}`;
+  if (message) {
+    url += `&text=${encodeURIComponent(message)}`;
+  }
+  return url;
 }
 return null;
 }
@@ -1313,6 +1688,7 @@ return dateTimeA - dateTimeB;
 });
 bookings.forEach((b, i) => {
 if (selectedDate && b.dateValue !== selectedDate) return;
+if (window._filterLateOnly && getBookingLateMinutes(b) < 1) return;
 if (window._filterPrepayOnly) {
   const rawPrepay = String(b.prepay || '').trim().replace(/\s+/g,'').replace(/,/g,'.').replace(/[^0-9.\-]/g,'');
   if (!rawPrepay || Number(rawPrepay) <= 0) return;
@@ -1669,6 +2045,7 @@ done.push(b);
 bookings.splice(currentBookingIndex, 1);
 saveAll();
 closeModal();
+removeNotificationsByBookingId(b.id);
 try {
 await syncBookingStatus(b, 'arrived');
 } catch (_) {
@@ -1696,6 +2073,7 @@ done.push(b);
 bookings.splice(currentBookingIndex, 1);
 saveAll();
 closeModal();
+removeNotificationsByBookingId(b.id);
 try {
 await syncBookingStatus(b, 'late');
 } catch (_) {
@@ -1723,6 +2101,7 @@ done.push(b);
 bookings.splice(currentBookingIndex, 1);
 saveAll();
 closeModal();
+removeNotificationsByBookingId(b.id);
 try {
 await syncBookingStatus(b, 'cancelled');
 } catch (_) {
@@ -1750,6 +2129,7 @@ done.push(b);
 bookings.splice(currentBookingIndex, 1);
 saveAll();
 closeModal();
+removeNotificationsByBookingId(b.id);
 try {
 await syncBookingStatus(b, 'no-show');
 } catch (_) {
@@ -1765,6 +2145,7 @@ confirmAction('Удалить бронь?', () => {
 const removed = bookings[i];
 bookings.splice(i, 1);
 saveAll();
+removeNotificationsByBookingId(removed.id);
 syncDeleteBooking(removed).catch(() => {
 bookings.splice(i, 0, removed);
 saveAll();
@@ -2460,15 +2841,51 @@ button.textContent = 'Скрыть';
 function mapServerStatsToCards(stats) {
 return [
 { value: Number(stats.total_bookings || 0), label: 'Всего броней' },
-{ value: Number(stats.active_bookings || 0), label: 'Активные брони' },
 { value: Number(stats.done_arrived || 0), label: 'Завершены с приходом' },
 { value: Number(stats.done_late || 0), label: 'Опоздания' },
 { value: Number(stats.done_cancelled || 0), label: 'Отмены' },
 { value: Number(stats.done_no_show || 0), label: 'Неявки' },
-{ value: Number(stats.guests_total || 0), label: 'Гостей в рейтинге' },
-{ value: Number(stats.admins_total || 0), label: 'Админов клуба' },
-...(clubContext.psCapacity > 0 ? [{ value: Number(stats.active_ps_sessions || 0), label: 'Активные PS сеансы' }] : [])
+{ value: Number(stats.guests_total || 0), label: 'Гостей в рейтинге' }
 ];
+}
+
+function buildLocalOwnerStatsSnapshot() {
+const doneList = Array.isArray(done) ? done : [];
+const activeList = Array.isArray(bookings) ? bookings : [];
+const psList = Array.isArray(psConsoles) ? psConsoles : [];
+const adminsList = Array.isArray(admins) ? admins : [];
+const ratings = guestRatings && typeof guestRatings === 'object' ? Object.keys(guestRatings).length : 0;
+
+return {
+total_bookings: activeList.length + doneList.length,
+active_bookings: activeList.length,
+done_arrived: doneList.filter((b) => b.status === 'arrived').length,
+done_late: doneList.filter((b) => b.status === 'late').length,
+done_cancelled: doneList.filter((b) => b.status === 'cancelled').length,
+done_no_show: doneList.filter((b) => b.status === 'no-show').length,
+guests_total: ratings,
+admins_total: adminsList.length,
+active_ps_sessions: psList.filter((ps) => ps.status === 'active' || ps.status === 'warning').length
+};
+}
+
+function getOwnerStatsIconSvg(label) {
+switch (label) {
+case 'Всего броней':
+return '<svg width="16" height="16" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="1" width="10" height="12" rx="1.5" stroke="currentColor" stroke-width="1.2" fill="none"/><line x1="4.5" y1="4.5" x2="9.5" y2="4.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/><line x1="4.5" y1="7" x2="9.5" y2="7" stroke="currentColor" stroke-width="1" stroke-linecap="round"/><line x1="4.5" y1="9.5" x2="7.5" y2="9.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/></svg>';
+case 'Завершены с приходом':
+return '<svg width="16" height="16" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M4.2 7.2L6.2 9.2L9.8 5.6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+case 'Опоздания':
+return '<svg width="16" height="16" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M7 3.6V7L9.5 8.4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+case 'Отмены':
+return '<svg width="16" height="16" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M4.7 4.7L9.3 9.3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/><path d="M9.3 4.7L4.7 9.3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>';
+case 'Неявки':
+return '<svg width="16" height="16" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="7" cy="7" r="5.5" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M4.5 7h5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>';
+case 'Гостей в рейтинге':
+return '<svg width="16" height="16" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="7" cy="4.5" r="2.4" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M2 12c0-2.45 2-4.4 4.5-4.4S11 9.55 11 12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" fill="none"/></svg>';
+default:
+return '<svg width="16" height="16" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="2" width="12" height="10" rx="1.5" stroke="currentColor" stroke-width="1.2" fill="none"/><path d="M4.2 9.2h5.6" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/></svg>';
+}
 }
 
 function renderOwnerStatsCards(cards) {
@@ -2477,17 +2894,379 @@ if (!content) return;
 content.innerHTML = '';
 cards.forEach((item) => {
 const card = document.createElement('div');
-card.className = 'owner-stat-card';
-card.innerHTML = `<strong>${item.value}</strong><span>${item.label}</span>`;
+card.className = 'owner-stat-card stat-card';
+card.innerHTML = `<div class="stat-card-icon">${getOwnerStatsIconSvg(item.label)}</div><div class="stat-card-value">${item.value}</div><div class="stat-card-label">${item.label}</div>`;
 content.appendChild(card);
 });
 }
 
+function buildOwnerBookingInsights() {
+const allBookings = [
+...(Array.isArray(bookings) ? bookings : []),
+...(Array.isArray(done) ? done : [])
+].filter((b) => b && b.pc && b.time && b.dateValue);
+
+const guestRatingsList = Object.values(guestRatings || {});
+const now = new Date();
+
+// Get current calendar week (Monday to Sunday)
+const weekStart = new Date(now);
+const dayOfWeek = now.getDay();
+// dayOfWeek: 0=Sunday, 1=Monday, ..., 6=Saturday
+// We want to start from Monday, so go back (dayOfWeek - 1) days, or -6 if Sunday
+if (dayOfWeek === 0) {
+  weekStart.setDate(now.getDate() - 6);
+} else {
+  weekStart.setDate(now.getDate() - (dayOfWeek - 1));
+}
+weekStart.setHours(0, 0, 0, 0);
+const weekEnd = new Date(weekStart);
+weekEnd.setDate(weekStart.getDate() + 6);
+weekEnd.setHours(23, 59, 59, 999);
+
+// Get current month (1st to last day)
+const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+monthStart.setHours(0, 0, 0, 0);
+
+// Filter bookings by calendar periods
+const weekPcBookings = allBookings.filter((b) => {
+  const bDate = new Date(`${b.dateValue}T00:00:00`);
+  return !Number.isNaN(bDate.getTime()) && bDate >= weekStart && bDate <= weekEnd;
+});
+
+const monthPcBookings = allBookings.filter((b) => {
+  const bDate = new Date(`${b.dateValue}T00:00:00`);
+  return !Number.isNaN(bDate.getTime()) && 
+         bDate.getFullYear() === now.getFullYear() && 
+         bDate.getMonth() === now.getMonth();
+});
+
+// Calculate PC counts for week, month and all-time
+const calculatePcCounts = (bookingsArray) => {
+const pcCounts = new Map();
+bookingsArray.forEach((booking) => {
+String(booking.pc)
+.split(',')
+.map((value) => String(value || '').trim())
+.filter(Boolean)
+.forEach((pc) => {
+pcCounts.set(pc, (pcCounts.get(pc) || 0) + 1);
+});
+});
+return Array.from(pcCounts.entries())
+.sort((a, b) => {
+if (b[1] !== a[1]) return b[1] - a[1];
+const aNum = Number(a[0]);
+const bNum = Number(b[0]);
+if (Number.isFinite(aNum) && Number.isFinite(bNum)) return aNum - bNum;
+return String(a[0]).localeCompare(String(b[0]), 'ru-RU');
+})
+.slice(0, 10)
+.map((entry) => ({ pc: entry[0], count: entry[1] }));
+};
+
+const topPcsLastWeek = calculatePcCounts(weekPcBookings);
+const topPcsLastMonth = calculatePcCounts(monthPcBookings);
+const topPcsAllTime = calculatePcCounts(allBookings);
+
+// Calculate peak hour interval
+const hourCounts = new Map();
+allBookings.forEach((booking) => {
+const hourPart = Number.parseInt(String(booking.time).split(':')[0], 10);
+if (Number.isInteger(hourPart) && hourPart >= 0 && hourPart <= 23) {
+hourCounts.set(hourPart, (hourCounts.get(hourPart) || 0) + 1);
+}
+});
+
+const peakHourEntry = Array.from(hourCounts.entries()).sort((a, b) => {
+if (b[1] !== a[1]) return b[1] - a[1];
+return a[0] - b[0];
+})[0] || null;
+
+let peakInterval = '—';
+let peakCount = 0;
+if (peakHourEntry) {
+const hour = peakHourEntry[0];
+const from = `${String(hour).padStart(2, '0')}:00`;
+const to = `${String(hour).padStart(2, '0')}:59`;
+peakInterval = `${from} - ${to}`;
+peakCount = peakHourEntry[1];
+}
+
+// Calculate weekly bookings for current calendar week (Monday -> Sunday)
+const weekdaysRuMonFirst = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
+const weeklyBookings = weekdaysRuMonFirst.map((name, index) => {
+  const date = new Date(weekStart);
+  date.setDate(weekStart.getDate() + index);
+  const dateStr = date.toISOString().split('T')[0];
+  const isCurrent = dateStr === now.toISOString().split('T')[0];
+  return { name, count: 0, isCurrent, dateStr };
+});
+
+const weeklyBookingsByDate = new Map(weeklyBookings.map((item) => [item.dateStr, item]));
+
+allBookings.forEach((booking) => {
+  const bDate = new Date(`${booking.dateValue}T00:00:00`);
+  if (Number.isNaN(bDate.getTime()) || bDate < weekStart || bDate > weekEnd) return;
+  const dateStr = bDate.toISOString().split('T')[0];
+  const dayEntry = weeklyBookingsByDate.get(dateStr);
+  if (dayEntry) {
+    dayEntry.count++;
+  }
+});
+
+// Calculate client ratings
+const latestBookingsByPhone = new Map();
+allBookings
+.slice()
+.sort((a, b) => new Date(b.addedAt || 0).getTime() - new Date(a.addedAt || 0).getTime())
+.forEach((booking) => {
+const phoneKey = cleanPhone(booking.phone || '');
+if (!phoneKey) return;
+if (!latestBookingsByPhone.has(phoneKey)) {
+latestBookingsByPhone.set(phoneKey, booking);
+}
+});
+
+const clientsByRating = guestRatingsList
+.map((guest) => {
+const phoneRaw = String(guest.phone || '').trim();
+const phoneKey = cleanPhone(phoneRaw);
+if (!phoneKey) return null;
+const latestBooking = latestBookingsByPhone.get(phoneKey) || null;
+const name = String((latestBooking && latestBooking.name) || 'Неизвестный').trim();
+const ratingValue = Number(guest.rating || 0);
+return {
+phoneRaw,
+phoneKey,
+name: name || 'Неизвестный',
+rating: Number.isFinite(ratingValue) ? ratingValue : 0
+};
+})
+.filter(Boolean);
+
+const topClients = clientsByRating
+.slice()
+.sort((a, b) => {
+if (b.rating !== a.rating) return b.rating - a.rating;
+return a.name.localeCompare(b.name, 'ru-RU');
+})
+.slice(0, 5);
+
+const worstClients = clientsByRating
+.slice()
+.sort((a, b) => {
+if (a.rating !== b.rating) return a.rating - b.rating;
+return a.name.localeCompare(b.name, 'ru-RU');
+})
+.slice(0, 5);
+
+return {
+total: allBookings.length,
+topPcsLastWeek,
+topPcsLastMonth,
+topPcsAllTime,
+peakInterval,
+peakCount,
+weeklyBookings,
+topClients,
+worstClients
+};
+}
+
+function renderOwnerStatsInsights(insights) {
+const card1 = document.getElementById('ownerAnalyticsCard1');
+const card2 = document.getElementById('ownerAnalyticsCard2');
+const card3 = document.getElementById('ownerAnalyticsCard3');
+
+if (!card1 || !card2 || !card3) return;
+
+if (!insights || !insights.total) {
+const emptyMsg = '<div class="owner-insight-empty">Недостаточно данных</div>';
+card1.innerHTML = emptyMsg;
+card2.innerHTML = emptyMsg;
+card3.innerHTML = emptyMsg;
+return;
+}
+
+// Card 1: Top PCs
+const topPcsWeekHtml = insights.topPcsLastWeek && insights.topPcsLastWeek.length > 0
+? `<ol class="owner-top-list">${insights.topPcsLastWeek.map((item) => `<li><span>ПК ${escapeHtml(item.pc)}</span><strong>${item.count}</strong></li>`).join('')}</ol>`
+: '<div class="owner-insight-empty">Нет данных</div>';
+
+const topPcsHtml = insights.topPcsLastMonth && insights.topPcsLastMonth.length > 0
+? `<ol class="owner-top-list">${insights.topPcsLastMonth.map((item) => `<li><span>ПК ${escapeHtml(item.pc)}</span><strong>${item.count}</strong></li>`).join('')}</ol>`
+: '<div class="owner-insight-empty">Нет данных</div>';
+
+const topPcsAllTimeHtml = insights.topPcsAllTime && insights.topPcsAllTime.length > 0
+? `<ol class="owner-top-list">${insights.topPcsAllTime.map((item) => `<li><span>ПК ${escapeHtml(item.pc)}</span><strong>${item.count}</strong></li>`).join('')}</ol>`
+: '<div class="owner-insight-empty">Нет данных</div>';
+
+card1.innerHTML = `
+<div class="owner-time-toggle-inline">
+  <button type="button" class="owner-time-toggle-small" onclick="togglePcTimeRangeInline(this, 'week', 'ownerAnalyticsCard1')">Неделя</button>
+  <button type="button" class="owner-time-toggle-small active" onclick="togglePcTimeRangeInline(this, 'month', 'ownerAnalyticsCard1')">Месяц</button>
+  <button type="button" class="owner-time-toggle-small" onclick="togglePcTimeRangeInline(this, 'all-time', 'ownerAnalyticsCard1')">Всё время</button>
+</div>
+<div class="owner-pcs-week-inline" style="display:none;">
+  ${topPcsWeekHtml}
+</div>
+<div class="owner-pcs-month-inline">
+  ${topPcsHtml}
+</div>
+<div class="owner-pcs-all-time-inline" style="display:none;">
+  ${topPcsAllTimeHtml}
+</div>
+`;
+
+// Card 2: Guest Ratings
+const topClientsHtml = Array.isArray(insights.topClients) && insights.topClients.length > 0
+? `<ol class="owner-clients-list">${insights.topClients.map((item) => {
+const safePhoneArg = String(item.phoneRaw || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+const safeNameArg = String(item.name || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+return `<li><button type="button" class="audit-booking-link" onclick="openCustomerHistoryByPhone('${safePhoneArg}', '${safeNameArg}')">${escapeHtml(item.name)}</button><strong>${Math.round(item.rating)}%</strong></li>`;
+}).join('')}</ol>`
+: '<div class="owner-insight-empty">Нет данных</div>';
+
+const worstClientsHtml = Array.isArray(insights.worstClients) && insights.worstClients.length > 0
+? `<ol class="owner-clients-list">${insights.worstClients.map((item) => {
+const safePhoneArg = String(item.phoneRaw || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+const safeNameArg = String(item.name || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+return `<li><button type="button" class="audit-booking-link" onclick="openCustomerHistoryByPhone('${safePhoneArg}', '${safeNameArg}')">${escapeHtml(item.name)}</button><strong>${Math.round(item.rating)}%</strong></li>`;
+}).join('')}</ol>`
+: '<div class="owner-insight-empty">Нет данных</div>';
+
+card2.innerHTML = `
+<div class="owner-rating-section">
+  <div class="owner-rating-label">Лучшие:</div>
+  ${topClientsHtml}
+</div>
+<div class="owner-rating-section">
+  <div class="owner-rating-label">Проблемные:</div>
+  ${worstClientsHtml}
+</div>
+`;
+
+// Card 3: Weekly Bookings
+const weeklyHtml = Array.isArray(insights.weeklyBookings) && insights.weeklyBookings.length > 0
+? `<div class="owner-weekly-grid">${insights.weeklyBookings.map((day) => `
+<div class="owner-weekly-day ${day.isCurrent ? 'is-current' : ''}">
+  <div class="owner-weekly-name">${escapeHtml(day.name)}</div>
+  <div class="owner-weekly-count">${day.count}</div>
+</div>
+`).join('')}</div>`
+: '<div class="owner-insight-empty">Нет данных</div>';
+
+const peakIntervalHtml = `
+<div class="owner-peak-info">
+  <div class="owner-peak-label">Пиковый:</div>
+  <div class="owner-peak-time">${escapeHtml(insights.peakInterval)}</div>
+  <div class="owner-peak-count">Броней: ${insights.peakCount}</div>
+</div>
+`;
+
+card3.innerHTML = `
+${weeklyHtml}
+${peakIntervalHtml}
+`;
+}
+
+function toggleAccordionBox(headerElement) {
+const box = headerElement.closest('.owner-accordion-box');
+if (!box) return;
+
+const isExpanded = box.classList.contains('is-expanded');
+const icon = headerElement.querySelector('.owner-accordion-icon');
+const content = box.querySelector('.owner-accordion-content');
+
+if (isExpanded) {
+box.classList.remove('is-expanded');
+if (icon) icon.textContent = '▸';
+if (content) {
+content.style.maxHeight = '0';
+}
+} else {
+box.classList.add('is-expanded');
+if (icon) icon.textContent = '▾';
+if (content) {
+setTimeout(() => {
+content.style.maxHeight = content.scrollHeight + 'px';
+}, 0);
+}
+}
+}
+
+function togglePcTimeRangeInline(buttonElement, range, cardId) {
+const card = document.getElementById(cardId);
+if (!card) return;
+
+const weekContainer = card.querySelector('.owner-pcs-week-inline');
+const monthContainer = card.querySelector('.owner-pcs-month-inline');
+const allTimeContainer = card.querySelector('.owner-pcs-all-time-inline');
+const buttons = card.querySelectorAll('.owner-time-toggle-small');
+
+buttons.forEach((btn) => btn.classList.remove('active'));
+buttonElement.classList.add('active');
+
+if (weekContainer) weekContainer.style.display = 'none';
+if (monthContainer) monthContainer.style.display = 'none';
+if (allTimeContainer) allTimeContainer.style.display = 'none';
+
+if (range === 'week') {
+if (weekContainer) weekContainer.style.display = '';
+} else if (range === 'month') {
+if (monthContainer) monthContainer.style.display = '';
+} else if (range === 'all-time') {
+if (allTimeContainer) allTimeContainer.style.display = '';
+}
+}
+
+function togglePcTimeRange(buttonElement, range) {
+const box = buttonElement.closest('.owner-accordion-box');
+if (!box) return;
+
+const monthContainer = box.querySelector('.owner-pcs-month');
+const allTimeContainer = box.querySelector('.owner-pcs-all-time');
+const contentEl = box.querySelector('.owner-accordion-content');
+const buttons = box.querySelectorAll('.owner-time-toggle');
+
+buttons.forEach((btn) => btn.classList.remove('active'));
+buttonElement.classList.add('active');
+
+if (range === 'month') {
+if (monthContainer) monthContainer.style.display = '';
+if (allTimeContainer) allTimeContainer.style.display = 'none';
+} else if (range === 'all-time') {
+if (monthContainer) monthContainer.style.display = 'none';
+if (allTimeContainer) allTimeContainer.style.display = '';
+}
+
+// Recalculate content height
+if (contentEl && box.classList.contains('is-expanded')) {
+setTimeout(() => {
+contentEl.style.maxHeight = contentEl.scrollHeight + 'px';
+}, 0);
+}
+}
+
 async function refreshOwnerStatsPageContent() {
+const content = document.getElementById('ownerStatsPageContent');
+if (content) {
+content.innerHTML = '<div class="owner-stat-card stat-card"><div class="stat-card-icon"></div><div class="stat-card-value">...</div><div class="stat-card-label">Загрузка статистики</div></div>';
+}
 try {
 const stats = await apiRequest('/club/stats');
-renderOwnerStatsCards(mapServerStatsToCards(stats || {}));
+const statsCards = mapServerStatsToCards(stats || {});
+if (Array.isArray(statsCards) && statsCards.length > 0) {
+renderOwnerStatsCards(statsCards);
+renderOwnerStatsInsights(buildOwnerBookingInsights());
+return;
+}
+renderOwnerStatsCards(mapServerStatsToCards(buildLocalOwnerStatsSnapshot()));
+renderOwnerStatsInsights(buildOwnerBookingInsights());
 } catch (_) {
+renderOwnerStatsCards(mapServerStatsToCards(buildLocalOwnerStatsSnapshot()));
+renderOwnerStatsInsights(buildOwnerBookingInsights());
 }
 }
 
@@ -3444,6 +4223,7 @@ ps.clientName = null;
 ps.clientPhone = null;
 ps.isFreeTime = true;
 savePSState();
+removeNotificationsByPsId(psID);
 renderPSConsoles();
 try {
 // End the expired session in the DB before opening a new free-time session
@@ -3547,9 +4327,8 @@ ps.totalPaid = 0;
 ps.selectedPackage = 'Поминутка';
 ps.addedTime = 0;
 ps.isFreeTime = true;
-ps.booking = null;
-
 savePSState();
+removeNotificationsByPsId(currentPSID);
 renderPSConsoles();
 
 apiRequest(`/ps/consoles/${currentPSID}/session`, {
@@ -3610,6 +4389,7 @@ ps.selectedPackage = label;
 ps.addedTime = 0;
 ps.booking = null;
 savePSState();
+removeNotificationsByPsId(currentPSID);
 closePSPackagesModal();
 renderPSConsoles();
 apiRequest(`/ps/consoles/${currentPSID}/session`, {
@@ -3668,6 +4448,7 @@ ps.addedTime += minutes;
 if (ps.status === 'expired') {
 ps.startTime = Date.now();
 ps.status = 'active';
+removeNotificationsByPsId(currentPSID);
 }
 savePSState();
 closePSAddTimeModal();
@@ -3979,6 +4760,7 @@ ps.clientPhone = null;
 ps.booking = null;
 ps.isFreeTime = false; 
 savePSState();
+removeNotificationsByPsId(currentPSID);
 closePSEndSessionModal();
 renderPSConsoles();
 apiRequest(`/ps/consoles/${currentPSID}/session/end`, {
@@ -4004,6 +4786,13 @@ const msg = new SpeechSynthesisUtterance(`У PlayStation ${ps.id} закончи
 msg.lang = 'ru-RU';
 window.speechSynthesis.speak(msg);
 }
+// Add text notification to dashboard
+addNotification(
+  notificationTypes.PS_TIME_EXPIRED,
+  `PlayStation ${ps.id} - время сессии истекло`,
+  null,
+  ps
+);
 needsUpdate = true;
 } else if (ps.remaining <= config.ps.warningMinutes && ps.remaining > 0 && ps.status !== 'warning') {
 ps.status = 'warning';
@@ -4081,6 +4870,7 @@ enforceSubscriptionLock();
 ensurePreferredPlatform();
 if (currentPlatform === 'ps') renderPSConsoles();
 else renderTable();
+startBookingNotificationMonitoring();
 } catch (_) {
 }
 }
