@@ -36,6 +36,15 @@ body {
    AUTH MODAL
    ========================================================= */
 
+.auth-modal {
+  width: 100%;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
 .audit-date-picker {
   position: relative;
 }
