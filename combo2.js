@@ -940,9 +940,56 @@ document.getElementById('searchDate').value = "";
 document.getElementById('searchName').value = "";
 document.getElementById('searchPC').value = "";
 document.getElementById('searchPhone').value = "";
+window._filterPrepayOnly = false;
 renderTable();
 updatePCCounter();
 }
+
+window._filterPrepayOnly = false;
+
+window.openPcTabToday = function(prepayOnly) {
+  document.querySelectorAll('.nav-item').forEach(function(el) { el.classList.remove('active'); });
+  var navPC = document.getElementById('navPC');
+  if (navPC) navPC.classList.add('active');
+  document.getElementById('dashboardSection').style.display = 'none';
+  document.getElementById('bookingsSection').style.display = 'flex';
+  ['logsSection','bookingHistorySection','customerHistorySection','ownerStatsSection','adminsSection']
+    .forEach(function(id) { var el = document.getElementById(id); if (el) el.style.display = 'none'; });
+  window._filterPrepayOnly = !!prepayOnly;
+  switchPlatform('pc');
+  var todayStr = getLocalDateString(getCurrentLocalDate());
+  var searchDate = document.getElementById('searchDate');
+  if (searchDate) searchDate.value = todayStr;
+  renderTable();
+  updateCounter();
+};
+
+window.openPsTab = function() {
+  document.querySelectorAll('.nav-item').forEach(function(el) { el.classList.remove('active'); });
+  var navPS = document.getElementById('navPS');
+  if (navPS) navPS.classList.add('active');
+  document.getElementById('dashboardSection').style.display = 'none';
+  document.getElementById('bookingsSection').style.display = 'flex';
+  ['logsSection','bookingHistorySection','customerHistorySection','ownerStatsSection','adminsSection']
+    .forEach(function(id) { var el = document.getElementById(id); if (el) el.style.display = 'none'; });
+  switchPlatform('ps');
+};
+
+window.openAllPcTab = function() {
+  document.querySelectorAll('.nav-item').forEach(function(el) { el.classList.remove('active'); });
+  var navPC = document.getElementById('navPC');
+  if (navPC) navPC.classList.add('active');
+  document.getElementById('dashboardSection').style.display = 'none';
+  document.getElementById('bookingsSection').style.display = 'flex';
+  ['logsSection','bookingHistorySection','customerHistorySection','ownerStatsSection','adminsSection']
+    .forEach(function(id) { var el = document.getElementById(id); if (el) el.style.display = 'none'; });
+  window._filterPrepayOnly = false;
+  switchPlatform('pc');
+  var searchDate = document.getElementById('searchDate');
+  if (searchDate) searchDate.value = '';
+  renderTable();
+  updateCounter();
+};
 
 function getCurrentLocalDate() {
 return new Date();
@@ -1060,6 +1107,9 @@ renderTable();
 renderDone();
 renderGuests();
 updateCounter();
+if (typeof window.refreshDashboard === 'function') {
+window.refreshDashboard();
+}
 }
 function getOrCreateGuestRating(phone) {
 const phoneDigits = cleanPhone(phone);
@@ -1222,6 +1272,10 @@ return dateTimeA - dateTimeB;
 });
 bookings.forEach((b, i) => {
 if (selectedDate && b.dateValue !== selectedDate) return;
+if (window._filterPrepayOnly) {
+  const rawPrepay = String(b.prepay || '').trim().replace(/\s+/g,'').replace(/,/g,'.').replace(/[^0-9.\-]/g,'');
+  if (!rawPrepay || Number(rawPrepay) <= 0) return;
+}
 let matches = true;
 if (searchName) matches = matches && b.name.toLowerCase().includes(searchName);
 if (searchPC) matches = matches && b.pc.split(',').map(p => p.trim()).includes(searchPC.trim());

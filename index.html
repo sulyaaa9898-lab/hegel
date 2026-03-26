@@ -64,7 +64,7 @@
             <rect x="8" y="8" width="5" height="5" rx="1" fill="currentColor" opacity="0.7"/>
           </svg>
         </span>
-        <span class="nav-label">Дашборд</span>
+        <span class="nav-label">Dashboard</span>
       </a>
 
       <a class="nav-item" id="navPC" href="#"
@@ -88,7 +88,7 @@
             <rect x="5.5" y="10" width="3" height="1.5" fill="currentColor" opacity="0.5"/>
           </svg>
         </span>
-        <span class="nav-label">Брони ПК</span>
+        <span class="nav-label">Бронь ПК</span>
       </a>
 
       <a class="nav-item" id="navPS" href="#"
@@ -212,9 +212,7 @@
         <div class="current-user" id="currentUser"></div>
         <div class="user-time" id="userTime"></div>
       </div>
-      <div class="counter-wrap">
-        <span class="counter" id="counter">0/0</span>
-      </div>
+
       <button class="btn-logout" type="button" onclick="logout()">
         <span class="nav-label">Выход</span>
       </button>
@@ -244,30 +242,55 @@
         </div>
 
         <div class="stats-grid">
-          <div class="stat-card">
-            <div class="stat-card-icon">🖥</div>
-            <div class="stat-card-value" id="dashActivePc">—</div>
-            <div class="stat-card-label">Активные брони ПК</div>
+          <div class="stat-card" style="cursor:pointer;" onclick="window.openAllPcTab && window.openAllPcTab()">
+            <div class="stat-card-icon">
+              <svg width="16" height="16" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="2" y="1" width="10" height="12" rx="1.5" stroke="currentColor" stroke-width="1.2" fill="none"/>
+                <line x1="4.5" y1="4.5" x2="9.5" y2="4.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+                <line x1="4.5" y1="7" x2="9.5" y2="7" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+                <line x1="4.5" y1="9.5" x2="7.5" y2="9.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <div class="stat-card-value" id="dashTotalActive">—</div>
+            <div class="stat-card-label">Активные брони</div>
           </div>
-          <div class="stat-card" id="dashActivePsCard">
-            <div class="stat-card-icon">🎮</div>
-            <div class="stat-card-value" id="dashActivePs">—</div>
-            <div class="stat-card-label">Сессии Плейстейшн</div>
+          <div class="stat-card" style="cursor:pointer;" onclick="window.openPcTabToday && window.openPcTabToday(false)">
+            <div class="stat-card-icon">
+              <svg width="16" height="16" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="1" y="2" width="12" height="8" rx="1.5" stroke="currentColor" stroke-width="1.2" fill="none"/>
+                <rect x="4" y="11" width="6" height="1" rx="0.5" fill="currentColor" opacity="0.6"/>
+                <rect x="5.5" y="10" width="3" height="1.5" fill="currentColor" opacity="0.5"/>
+              </svg>
+            </div>
+            <div class="stat-card-value" id="dashPcCounter">—</div>
+            <div class="stat-card-label">ПК на брони сегодня</div>
           </div>
-          <div class="stat-card">
-            <div class="stat-card-icon">📅</div>
-            <div class="stat-card-value" id="dashToday">—</div>
-            <div class="stat-card-label">Брони за сегодня</div>
+          <div class="stat-card" id="dashActivePsCard" style="cursor:pointer;" onclick="window.openPsTab && window.openPsTab()">
+            <div class="stat-card-icon">
+              <svg width="16" height="16" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M3 3 L11 3 Q13 3 13 5 L13 8.5 Q13 9.5 12 9.5 L11 9.5 L11 11.5 Q11 12.5 10 12.5 L9.5 12.5 Q8.5 12.5 8.5 11.5 L8.5 9.5 L5.5 9.5 L5.5 11.5 Q5.5 12.5 4.5 12.5 L4 12.5 Q3 12.5 3 11.5 L3 9.5 L2 9.5 Q1 9.5 1 8.5 L1 5 Q1 3 3 3 Z" stroke="currentColor" stroke-width="1.2" fill="none"/>
+                <line x1="4.2" y1="5" x2="4.2" y2="8" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+                <line x1="2.7" y1="6.5" x2="5.7" y2="6.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+                <circle cx="10.3" cy="5.2" r="0.6" fill="currentColor"/>
+                <circle cx="11.5" cy="6.5" r="0.6" fill="currentColor"/>
+                <circle cx="10.3" cy="7.8" r="0.6" fill="currentColor"/>
+                <circle cx="9.1" cy="6.5" r="0.6" fill="currentColor"/>
+              </svg>
+            </div>
+            <div class="stat-card-value" id="dashPsCounter">—</div>
+            <div class="stat-card-label">Активные сессии ПС</div>
           </div>
-          <div class="stat-card">
-            <div class="stat-card-icon">✅</div>
-            <div class="stat-card-value" id="dashArrived">—</div>
-            <div class="stat-card-label">Пришедшие клиенты</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-card-icon">🚫</div>
-            <div class="stat-card-value" id="dashNoShow">—</div>
-            <div class="stat-card-label">Не пришедшие клиенты</div>
+          <div class="stat-card" style="cursor:pointer;" onclick="window.openPcTabToday && window.openPcTabToday(true)">
+            <div class="stat-card-icon">
+              <svg width="16" height="16" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="1" y="3.5" width="12" height="7" rx="1.5" stroke="currentColor" stroke-width="1.2" fill="none"/>
+                <circle cx="7" cy="7" r="1.8" stroke="currentColor" stroke-width="1" fill="none"/>
+                <line x1="2.5" y1="7" x2="3.5" y2="7" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+                <line x1="10.5" y1="7" x2="11.5" y2="7" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <div class="stat-card-value" id="dashPrepayToday">—</div>
+            <div class="stat-card-label">Сумма предоплат на сегодня</div>
           </div>
         </div>
 
@@ -905,38 +928,70 @@
       var bookings = window.bookings || [];
       var psConsoles = window.psConsoles || [];
       var today = new Date();
-      var todayStr = today.toISOString().split('T')[0];
+      var yyyy = today.getFullYear();
+      var mm = String(today.getMonth() + 1).padStart(2, '0');
+      var dd = String(today.getDate()).padStart(2, '0');
+      var todayStr = yyyy + '-' + mm + '-' + dd;
 
-      var activePc   = 0;
-      var todayCount = 0;
-      var arrived    = 0;
-      var noShow     = 0;
+      var bookedPcSet = new Set();
+      var prepayToday = 0;
 
       bookings.forEach(function(b) {
         if (!b) return;
-        var bDate = b.date || '';
+        var bDate = String(b.dateValue || b.date || '');
         if (bDate.includes('.')) {
           var parts = bDate.split('.');
           if (parts.length === 3) bDate = parts[2] + '-' + parts[1] + '-' + parts[0];
         }
         var isToday = bDate === todayStr;
         var status  = (b.status || '').toLowerCase();
+        var pcField = String(b.pc || '');
 
-        if (status === 'pending'  || status === '') activePc++;
-        if (isToday) todayCount++;
-        if (isToday && status === 'arrived') arrived++;
-        if (isToday && status === 'no-show') noShow++;
+        if (isToday && status !== 'cancelled' && status !== 'no-show' && pcField) {
+          pcField.split(/[\s,]+/).forEach(function(rawPc) {
+            var pc = rawPc.trim();
+            if (pc) bookedPcSet.add(pc);
+          });
+        }
+
+        var isActiveBooking = (status === 'pending' || status === '');
+        if (isToday && isActiveBooking) {
+          var rawPrepay = String(b.prepay || '').trim();
+          if (rawPrepay) {
+            var normalizedPrepay = rawPrepay
+              .replace(/\s+/g, '')
+              .replace(/,/g, '.')
+              .replace(/[^0-9.\-]/g, '');
+            var parsedPrepay = Number(normalizedPrepay);
+            if (!Number.isNaN(parsedPrepay) && parsedPrepay > 0) {
+              prepayToday += parsedPrepay;
+            }
+          }
+        }
       });
 
       var activePs = psConsoles.filter(function(c) {
         return c && (c.status === 'active' || c.status === 'warning');
       }).length;
 
-      setText('dashActivePc', activePc);
-      setText('dashActivePs', activePs);
-      setText('dashToday',    todayCount);
-      setText('dashArrived',  arrived);
-      setText('dashNoShow',   noShow);
+      var totalPc = (typeof window.getCurrentPcCapacity === 'function')
+        ? Number(window.getCurrentPcCapacity() || 0)
+        : Number((window.config && window.config.maxPCs) || 0);
+      var totalPs = (typeof window.getCurrentPsCapacity === 'function')
+        ? Number(window.getCurrentPsCapacity() || 0)
+        : Number(psConsoles.length || 0);
+
+      var bookedPcToday = bookedPcSet.size;
+      var totalActive = bookings.filter(function(b) {
+        if (!b) return false;
+        var status = (b.status || '').toLowerCase();
+        return status === 'pending' || status === '';
+      }).length;
+
+      setText('dashTotalActive', totalActive);
+      setText('dashPcCounter', bookedPcToday + '/' + totalPc);
+      setText('dashPsCounter', activePs + '/' + totalPs);
+      setText('dashPrepayToday', Math.round(prepayToday) + ' ₸');
     } catch(e) {}
   }
 
