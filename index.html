@@ -643,19 +643,21 @@
         <div id="ownerStatsPageContent" class="owner-stats-grid"></div>
       </div>
 
-      <div id="adminsSection" style="display:none; flex-direction:column; gap:24px;">
-        <div class="dashboard-heading">
-          <h2>Администраторы</h2>
-          <span class="dashboard-sub">Управление администраторами клуба и invite-ссылкой</span>
-        </div>
-
-        <div class="section-card section-card-compact section-card-compact--narrow">
-          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-            <button type="button" onclick="generateAdminInvite()">Сгенерировать invite для админа</button>
-            <button type="button" onclick="copyAdminInviteLink()">Копировать invite</button>
-            <div id="adminInviteNotification" class="admin-invite-toast" style="display:none;margin-left:auto;padding:6px 10px;border-radius:6px;font-size:0.8125rem;font-weight:400;white-space:nowrap;color:#d1fae5;background:rgba(20,83,56,0.6);border:1px solid rgba(34,197,94,0.25);"></div>
+      <div id="adminsSection" class="admins-section" style="display:none;">
+        <div class="admins-topbar">
+          <div class="dashboard-heading">
+            <h2>Администраторы</h2>
+            <span class="dashboard-sub">Управление администраторами клуба и invite-ссылкой</span>
           </div>
-          <input id="adminsPageInviteLink" class="compact-readonly-input" type="text" readonly style="margin-top:10px;width:100%;">
+
+          <div class="section-card section-card-compact section-card-compact--narrow admins-invite-panel">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+              <button type="button" onclick="generateAdminInvite()">Сгенерировать invite для админа</button>
+              <button type="button" onclick="copyAdminInviteLink()">Копировать invite</button>
+              <div id="adminInviteNotification" class="admin-invite-toast" style="display:none;margin-left:auto;padding:6px 10px;border-radius:6px;font-size:0.8125rem;font-weight:400;white-space:nowrap;color:#d1fae5;background:rgba(20,83,56,0.6);border:1px solid rgba(34,197,94,0.25);"></div>
+            </div>
+            <input id="adminsPageInviteLink" class="compact-readonly-input" type="text" readonly style="margin-top:10px;width:100%;">
+          </div>
         </div>
 
         <div id="adminsPageList" class="section-card" style="display:flex;flex-direction:column;gap:10px;"></div>
@@ -720,7 +722,6 @@
     <button type="button" onclick="closeAdminsModal()" style="margin-top:20px;">Закрыть</button>
   </div>
 </div>
-
 <div id="ownerStatsModal" class="modal">
   <div class="modal-content">
     <h3>Статистика клуба</h3>

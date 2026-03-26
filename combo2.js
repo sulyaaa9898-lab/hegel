@@ -15,6 +15,9 @@ const INVITE_MODE_ADMIN = 'ADMIN';
 const INVITE_MODE_OWNER = 'OWNER';
 let authToken = '';
 let pendingForceAdminLogin = null;
+let realtimeSyncIntervalId = null;
+let realtimeSyncInFlight = false;
+const REALTIME_SYNC_MS = 10000;
 const inviteContext = {
 token: '',
 mode: null,
@@ -715,6 +718,44 @@ setInterval(updateUserTime, 1000);
 setInterval(() => {
 if (currentPlatform === 'pc') renderTable();
 }, 30000);
+
+async function runRealtimeSyncTick() {
+if (realtimeSyncInFlight) return;
+if (!currentAdmin || !getAuthToken() || isInviteFlow()) return;
+
+realtimeSyncInFlight = true;
+try {
+await syncStateFromBackend();
+if (typeof window.refreshDashboard === 'function') {
+window.refreshDashboard();
+}
+
+const ownerStatsSection = document.getElementById('ownerStatsSection');
+if (ownerStatsSection && ownerStatsSection.style.display !== 'none') {
+await refreshOwnerStatsPageContent();
+}
+} catch (_) {
+} finally {
+realtimeSyncInFlight = false;
+}
+}
+
+function ensureRealtimeSyncStarted() {
+if (realtimeSyncIntervalId) return;
+realtimeSyncIntervalId = setInterval(() => {
+if (document.hidden) return;
+runRealtimeSyncTick();
+}, REALTIME_SYNC_MS);
+}
+
+ensureRealtimeSyncStarted();
+document.addEventListener('visibilitychange', () => {
+if (!document.hidden) runRealtimeSyncTick();
+});
+window.addEventListener('focus', () => {
+runRealtimeSyncTick();
+});
+
 function sendWhatsAppBooking(name, pc, time, dateDisplay, phone, prepay) {
 const phoneDigits = phone.replace(/\D/g, '');
 if (phoneDigits.length !== 11) return;
@@ -2179,39 +2220,62 @@ const list = document.getElementById('adminsPageList');
 list.innerHTML = '';
 admins.forEach(a => {
 const div = document.createElement('div');
-div.className = 'admin-item';
+div.className = 'admin-item admin-item--clickable';
+const headerRow = document.createElement('div');
+headerRow.className = 'admin-item-header';
 const strong = document.createElement('strong');
 strong.textContent = a.isRoot ? ROOT_NAME : a.name;
-div.appendChild(strong);
+headerRow.appendChild(strong);
 if (a.isRoot) {
 const badge = document.createElement('span');
 badge.className = 'root-badge';
 badge.textContent = 'ROOT';
-div.appendChild(badge);
+headerRow.appendChild(badge);
 }
 if (a.isClubOwner) {
 const badge = document.createElement('span');
 badge.className = 'root-badge';
 badge.textContent = 'OWNER';
-div.appendChild(badge);
+headerRow.appendChild(badge);
 }
-div.appendChild(document.createTextNode(` (${a.login})`));
-div.appendChild(document.createElement('br'));
+div.appendChild(headerRow);
+const login = document.createElement('small');
+login.textContent = `Логин: ${a.login}`;
+div.appendChild(login);
 const role = document.createElement('small');
-role.textContent = a.isRoot ? 'Роль: ROOT' : (a.isClubOwner ? 'Роль: OWNER' : 'Роль: ADMIN');
+role.textContent = `Роль: ${a.isRoot ? 'ROOT' : (a.isClubOwner ? 'OWNER' : 'ADMIN')}`;
 div.appendChild(role);
-div.appendChild(document.createElement('br'));
 const created = document.createElement('small');
 created.textContent = `Создан: ${new Date(a.created).toLocaleString('ru-RU')}`;
 div.appendChild(created);
+const actRow = document.createElement('div');
+actRow.className = 'admin-item-actions';
+const statsBtn = document.createElement('button');
+statsBtn.type = 'button';
+statsBtn.className = 'btn-admin-stats';
+statsBtn.textContent = 'Статистика';
+statsBtn.addEventListener('click', (e) => {
+e.stopPropagation();
+toggleAdminStatsDropdown(div, a, statsBtn);
+});
+actRow.appendChild(statsBtn);
 if (!a.isRoot && !a.isClubOwner) {
-const btn = document.createElement('button');
-btn.type = 'button';
-btn.textContent = 'Удалить';
-btn.addEventListener('click', () => deleteAdmin(a.id));
-div.appendChild(document.createElement('br'));
-div.appendChild(btn);
+const delBtn = document.createElement('button');
+delBtn.type = 'button';
+delBtn.className = 'btn-admin-delete';
+delBtn.textContent = 'Удалить';
+delBtn.addEventListener('click', (e) => {
+e.stopPropagation();
+deleteAdmin(a.id);
+});
+actRow.appendChild(delBtn);
 }
+div.appendChild(actRow);
+
+const dropdown = document.createElement('div');
+dropdown.className = 'admin-item-dropdown';
+div.appendChild(dropdown);
+
 list.appendChild(div);
 });
 }
@@ -2298,44 +2362,101 @@ if (canUseClipboardApi) {
 navigator.clipboard.writeText(value)
 .then(() => showAdminInviteNotification('Invite ссылка скопирована'))
 .catch(() => {
-const ok = copyFallback(value);
-if (ok) {
+if (copyFallback(value)) {
 showAdminInviteNotification('Invite ссылка скопирована');
-} else {
-notify('Не удалось скопировать invite ссылку', 'Ошибка');
+return;
 }
+notify('❌ Не удалось скопировать invite-ссылку', 'Ошибка');
 });
 return;
 }
-
-const ok = copyFallback(value);
-if (ok) {
+if (copyFallback(value)) {
 showAdminInviteNotification('Invite ссылка скопирована');
 } else {
-notify('Не удалось скопировать invite ссылку', 'Ошибка');
+notify('❌ Не удалось скопировать invite-ссылку', 'Ошибка');
 }
 }
-function buildOwnerStats() {
-const totalGuests = Object.keys(guestRatings || {}).length;
-const totalBookings = (bookings || []).length + (done || []).length;
-const doneArrived = (done || []).filter(item => item.status === 'arrived').length;
-const doneLate = (done || []).filter(item => item.status === 'late').length;
-const doneCancelled = (done || []).filter(item => item.status === 'cancelled').length;
-const doneNoShow = (done || []).filter(item => item.status === 'no-show').length;
-const activePsSessions = (psConsoles || []).filter(item => item.status === 'active' || item.status === 'warning').length;
-const totalAdmins = (admins || []).filter(item => !item.isRoot && !item.isClubOwner).length;
-return [
-{ value: totalBookings, label: 'Всего броней' },
-{ value: (bookings || []).length, label: 'Активные брони' },
-{ value: doneArrived, label: 'Завершены с приходом' },
-{ value: doneLate, label: 'Опоздания' },
-{ value: doneCancelled, label: 'Отмены' },
-{ value: doneNoShow, label: 'Неявки' },
-{ value: totalGuests, label: 'Гостей в рейтинге' },
-{ value: totalAdmins, label: 'Админов клуба' },
-...(clubContext.psCapacity > 0 ? [{ value: activePsSessions, label: 'Активные PS сеансы' }] : [])
-];
+function getAdminStatsData(a) {
+const activeList = Array.isArray(state.bookings) ? state.bookings : [];
+const doneList = Array.isArray(state.done) ? state.done : [];
+const matchesAdmin = function(record) {
+if (!record) return false;
+const addedBy = String(record.addedBy || '').trim();
+if (!addedBy) return false;
+if (addedBy === a.name) return true;
+if (a.isRoot && addedBy === ROOT_NAME) return true;
+return false;
+};
+const myActive = activeList.filter(matchesAdmin);
+const myDone = doneList.filter(matchesAdmin);
+let prepaySum = 0;
+[...myActive, ...myDone].forEach((b) => {
+const raw = String(b.prepay || '').trim().replace(/\s+/g, '').replace(/,/g, '.').replace(/[^0-9.\-]/g, '');
+const val = Number(raw);
+if (!Number.isNaN(val) && val > 0) prepaySum += val;
+});
+return {
+total: myActive.length + myDone.length,
+active: myActive.length,
+prepaySum: Math.round(prepaySum),
+arrived: myDone.filter((b) => b.status === 'arrived').length,
+late: myDone.filter((b) => b.status === 'late').length,
+cancelled: myDone.filter((b) => b.status === 'cancelled').length,
+noShow: myDone.filter((b) => b.status === 'no-show').length
+};
 }
+
+function renderAdminStatsDropdown(target, a) {
+const stats = getAdminStatsData(a);
+target.innerHTML = '';
+
+const grid = document.createElement('div');
+grid.className = 'admin-stats-grid';
+[
+{ label: 'Всего броней', value: stats.total },
+{ label: 'Активных', value: stats.active },
+{ label: 'Сумма предоплат', value: `${stats.prepaySum} ₸` }
+].forEach((item) => {
+const card = document.createElement('div');
+card.className = 'admin-stat-card';
+card.innerHTML = `<div class="admin-stat-value">${item.value}</div><div class="admin-stat-label">${item.label}</div>`;
+grid.appendChild(card);
+});
+target.appendChild(grid);
+
+const row = document.createElement('div');
+row.className = 'admin-stats-status-row';
+[
+{ label: 'Пришёл', value: stats.arrived, cls: 'status-arrived' },
+{ label: 'Опоздал', value: stats.late, cls: 'status-late' },
+{ label: 'Отменён', value: stats.cancelled, cls: 'status-cancelled' },
+{ label: 'Не пришёл', value: stats.noShow, cls: 'status-noshow' }
+].forEach((item) => {
+const chip = document.createElement('div');
+chip.className = `admin-status-chip ${item.cls}`;
+chip.innerHTML = `<span class="admin-status-chip-val">${item.value}</span><span class="admin-status-chip-lbl">${item.label}</span>`;
+row.appendChild(chip);
+});
+target.appendChild(row);
+}
+
+function toggleAdminStatsDropdown(card, a, button) {
+const dropdown = card.querySelector('.admin-item-dropdown');
+if (!dropdown) return;
+const opened = card.classList.contains('admin-item-open');
+document.querySelectorAll('#adminsPageList .admin-item-open').forEach((node) => {
+node.classList.remove('admin-item-open');
+const btn = node.querySelector('.btn-admin-stats');
+if (btn) btn.textContent = 'Статистика';
+});
+if (opened) {
+return;
+}
+renderAdminStatsDropdown(dropdown, a);
+card.classList.add('admin-item-open');
+button.textContent = 'Скрыть';
+}
+
 function mapServerStatsToCards(stats) {
 return [
 { value: Number(stats.total_bookings || 0), label: 'Всего броней' },
@@ -2349,6 +2470,27 @@ return [
 ...(clubContext.psCapacity > 0 ? [{ value: Number(stats.active_ps_sessions || 0), label: 'Активные PS сеансы' }] : [])
 ];
 }
+
+function renderOwnerStatsCards(cards) {
+const content = document.getElementById('ownerStatsPageContent');
+if (!content) return;
+content.innerHTML = '';
+cards.forEach((item) => {
+const card = document.createElement('div');
+card.className = 'owner-stat-card';
+card.innerHTML = `<strong>${item.value}</strong><span>${item.label}</span>`;
+content.appendChild(card);
+});
+}
+
+async function refreshOwnerStatsPageContent() {
+try {
+const stats = await apiRequest('/club/stats');
+renderOwnerStatsCards(mapServerStatsToCards(stats || {}));
+} catch (_) {
+}
+}
+
 async function showOwnerStats() {
 if (!canViewHistoryAndStats()) {
 notify('❌ Недостаточно прав для просмотра статистики', 'Ошибка');
@@ -2364,20 +2506,7 @@ document.getElementById('ownerStatsSection').style.display = 'flex';
 document.querySelectorAll('.nav-item').forEach(function(el) { el.classList.remove('active'); });
 document.getElementById('statsBtn').classList.add('active');
 
-const content = document.getElementById('ownerStatsPageContent');
-content.innerHTML = '';
-let cards = buildOwnerStats();
-try {
-const stats = await apiRequest('/club/stats');
-cards = mapServerStatsToCards(stats || {});
-} catch (_) {
-}
-cards.forEach((item) => {
-const card = document.createElement('div');
-card.className = 'owner-stat-card';
-card.innerHTML = `<strong>${item.value}</strong><span>${item.label}</span>`;
-content.appendChild(card);
-});
+await refreshOwnerStatsPageContent();
 }
 function closeOwnerStatsModal() {
 document.getElementById('ownerStatsModal').style.display = 'none';
