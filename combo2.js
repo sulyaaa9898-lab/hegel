@@ -347,9 +347,14 @@ function canManageClub() {
 return !!(currentAdmin && (currentAdmin.role === CLUB_OWNER_ROLE || currentAdmin.isRoot));
 }
 
+function canViewHistoryAndStats() {
+return !!(currentAdmin && (currentAdmin.role === CLUB_OWNER_ROLE || currentAdmin.role === CLUB_ADMIN_ROLE || currentAdmin.isRoot));
+}
+
 function updateManagementNavVisibility() {
 const canManage = canManageClub();
 const ownerOnly = isClubOwner();
+const canViewStatsAndHistory = canViewHistoryAndStats();
 const adminBtn = document.getElementById('adminBtn');
 const statsBtn = document.getElementById('statsBtn');
 const logsBtn = document.getElementById('logsBtn');
@@ -357,10 +362,10 @@ const bookingHistoryBtn = document.getElementById('bookingHistoryBtn');
 const customerHistoryBtn = document.getElementById('customerHistoryBtn');
 
 if (adminBtn) adminBtn.style.display = canManage ? 'flex' : 'none';
-if (statsBtn) statsBtn.style.display = canManage ? 'flex' : 'none';
+if (statsBtn) statsBtn.style.display = canViewStatsAndHistory ? 'flex' : 'none';
 if (logsBtn) logsBtn.style.display = ownerOnly ? 'flex' : 'none';
-if (bookingHistoryBtn) bookingHistoryBtn.style.display = ownerOnly ? 'flex' : 'none';
-if (customerHistoryBtn) customerHistoryBtn.style.display = ownerOnly ? 'flex' : 'none';
+if (bookingHistoryBtn) bookingHistoryBtn.style.display = canViewStatsAndHistory ? 'flex' : 'none';
+if (customerHistoryBtn) customerHistoryBtn.style.display = canViewStatsAndHistory ? 'flex' : 'none';
 }
 
 function expandSidebar() {
@@ -1090,6 +1095,16 @@ uiModule.showAlert(msg, 'Ошибка');
 function notify(msg, title = 'Уведомление') {
 uiModule.showAlert(msg, title);
 }
+function showAdminInviteNotification(msg) {
+const el = document.getElementById('adminInviteNotification');
+if (!el) return;
+el.textContent = msg;
+el.style.display = 'block';
+if (el._timeout) clearTimeout(el._timeout);
+el._timeout = setTimeout(() => {
+el.style.display = 'none';
+}, 3500);
+}
 function confirmAction(msg, onConfirm, title = 'Подтвердите действие') {
 uiModule.showConfirm(msg, onConfirm, title);
 }
@@ -1753,6 +1768,7 @@ const doneSearchPC = document.getElementById('doneSearchPC');
 const doneSearchDate = document.getElementById('doneSearchDate');
 const guestSearchInput = document.getElementById('guestSearchInput');
 const loginInput = document.getElementById('loginInput');
+	syncAuditDateRangeTrigger();
 if (searchName) searchName.addEventListener('input', renderTable);
 if (searchPC) searchPC.addEventListener('input', renderTable);
 if (searchPhone) searchPhone.addEventListener('input', renderTable);
@@ -1794,16 +1810,21 @@ const addPanel = document.getElementById('addPanel');
 const searchPanel = document.getElementById('searchPanel');
 const addBtn = document.querySelector('button[onclick="toggleAddPanel()"]');
 const searchBtn = document.querySelector('button[onclick="toggleSearchPanel()"]');
+	const auditDatePicker = document.getElementById('auditDatePicker');
 if (addPanel && addPanel.classList.contains('show') && !addPanel.contains(e.target) && !addBtn.contains(e.target)) {
 addPanel.classList.remove('show');
 }
 if (searchPanel && searchPanel.classList.contains('show') && !searchPanel.contains(e.target) && !searchBtn.contains(e.target)) {
 searchPanel.classList.remove('show');
 }
+	if (auditDatePicker && !auditDatePicker.contains(e.target)) {
+		closeAuditDateRangePopover();
+	}
 });
 document.addEventListener('keydown', (e) => {
 if (e.key === 'Escape') {
 if (isSidebarDrawerMode()) closeSidebarDrawer();
+	closeAuditDateRangePopover();
 const subLock = document.getElementById('subscriptionBlockModal');
 if (subLock && subLock.style.display === 'flex') return;
 document.getElementById('addPanel').classList.remove('show');
@@ -2187,7 +2208,7 @@ body: JSON.stringify({ club_id: clubContext.id })
 });
 const input = document.getElementById('adminsPageInviteLink');
 if (input) input.value = response.register_link || '';
-notify('✅ Invite для администратора создан', 'Успешно');
+showAdminInviteNotification('Invite для администратора создан');
 } catch (error) {
 notify(error.message || 'Ошибка создания invite', 'Ошибка');
 }
@@ -2221,16 +2242,24 @@ return copied;
 const canUseClipboardApi = window.isSecureContext && navigator.clipboard && typeof navigator.clipboard.writeText === 'function';
 if (canUseClipboardApi) {
 navigator.clipboard.writeText(value)
-.then(() => notify('✅ Invite ссылка скопирована', 'Успешно'))
+.then(() => showAdminInviteNotification('Invite ссылка скопирована'))
 .catch(() => {
 const ok = copyFallback(value);
-notify(ok ? '✅ Invite ссылка скопирована' : 'Не удалось скопировать invite ссылку', ok ? 'Успешно' : 'Ошибка');
+if (ok) {
+showAdminInviteNotification('Invite ссылка скопирована');
+} else {
+notify('Не удалось скопировать invite ссылку', 'Ошибка');
+}
 });
 return;
 }
 
 const ok = copyFallback(value);
-notify(ok ? '✅ Invite ссылка скопирована' : 'Не удалось скопировать invite ссылку', ok ? 'Успешно' : 'Ошибка');
+if (ok) {
+showAdminInviteNotification('Invite ссылка скопирована');
+} else {
+notify('Не удалось скопировать invite ссылку', 'Ошибка');
+}
 }
 function buildOwnerStats() {
 const totalGuests = Object.keys(guestRatings || {}).length;
@@ -2267,8 +2296,8 @@ return [
 ];
 }
 async function showOwnerStats() {
-if (!canManageClub()) {
-notify('❌ Только владелец клуба может смотреть статистику', 'Ошибка');
+if (!canViewHistoryAndStats()) {
+notify('❌ Недостаточно прав для просмотра статистики', 'Ошибка');
 return;
 }
 document.getElementById('dashboardSection').style.display = 'none';
@@ -2358,8 +2387,8 @@ loadAuditLogs();
 }
 
 async function showBookingHistoryPage() {
-if (!isClubOwner()) {
-notify('❌ Только владелец клуба может просматривать историю броней', 'Ошибка');
+if (!canViewHistoryAndStats()) {
+notify('❌ Недостаточно прав для просмотра истории броней', 'Ошибка');
 return;
 }
 document.getElementById('dashboardSection').style.display = 'none';
@@ -2393,8 +2422,8 @@ showBookingHistoryPage();
 }
 
 async function showCustomerHistoryPage() {
-if (!isClubOwner()) {
-notify('❌ Только владелец клуба может просматривать историю клиентов', 'Ошибка');
+if (!canViewHistoryAndStats()) {
+notify('❌ Недостаточно прав для просмотра истории клиентов', 'Ошибка');
 return;
 }
 document.getElementById('dashboardSection').style.display = 'none';
@@ -2444,6 +2473,70 @@ try {
 } catch (error) {
 	auditAccountsLoaded = false;
 }
+}
+
+function formatAuditDateTriggerValue(value) {
+if (!value) return '';
+const parsed = new Date(value);
+if (Number.isNaN(parsed.getTime())) return '';
+return parsed.toLocaleString('ru-RU', {
+	day: '2-digit',
+	month: '2-digit',
+	hour: '2-digit',
+	minute: '2-digit'
+}).replace(',', '');
+}
+
+function syncAuditDateRangeTrigger() {
+const trigger = document.getElementById('auditDateRangeTrigger');
+const fromInput = document.getElementById('auditFilterFrom');
+const toInput = document.getElementById('auditFilterTo');
+if (!trigger || !fromInput || !toInput) return;
+const fromText = formatAuditDateTriggerValue(fromInput.value);
+const toText = formatAuditDateTriggerValue(toInput.value);
+let label = 'Выбрать период';
+if (fromText && toText) {
+	label = `${fromText} - ${toText}`;
+	trigger.textContent = label;
+	trigger.title = label;
+	return;
+}
+if (fromText) {
+	label = `С ${fromText}`;
+	trigger.textContent = label;
+	trigger.title = label;
+	return;
+}
+if (toText) {
+	label = `До ${toText}`;
+	trigger.textContent = label;
+	trigger.title = label;
+	return;
+}
+	trigger.textContent = label;
+	trigger.title = label;
+}
+
+function openAuditDateRangePopover() {
+const popover = document.getElementById('auditDateRangePopover');
+if (!popover) return;
+popover.classList.add('is-open');
+}
+
+function closeAuditDateRangePopover() {
+const popover = document.getElementById('auditDateRangePopover');
+if (!popover) return;
+popover.classList.remove('is-open');
+}
+
+function toggleAuditDateRangePopover() {
+const popover = document.getElementById('auditDateRangePopover');
+if (!popover) return;
+popover.classList.toggle('is-open');
+}
+
+function handleAuditDateRangeChange() {
+	syncAuditDateRangeTrigger();
 }
 
 function toAuditIso(value) {
@@ -2662,7 +2755,7 @@ notify(err.message || 'Ошибка загрузки логов', 'Ошибка'
 }
 
 async function loadBookingHistory() {
-if (!isClubOwner()) return;
+if (!canViewHistoryAndStats()) return;
 const tbody = document.getElementById('bookingHistoryTableBody');
 const emptyState = document.getElementById('bookingHistoryEmptyState');
 if (!tbody || !emptyState) return;
@@ -2717,7 +2810,7 @@ if (emptyState) emptyState.style.display = 'none';
 }
 
 async function loadCustomerHistory() {
-if (!isClubOwner()) return;
+if (!canViewHistoryAndStats()) return;
 const tbody = document.getElementById('customerHistoryTableBody');
 const emptyState = document.getElementById('customerHistoryEmptyState');
 const phoneInput = document.getElementById('customerHistoryPhoneInput');
@@ -2805,6 +2898,8 @@ document.getElementById('auditFilterFrom').value = '';
 document.getElementById('auditFilterTo').value = '';
 const bookingUidInput = document.getElementById('auditFilterBookingUid');
 if (bookingUidInput) bookingUidInput.value = '';
+	syncAuditDateRangeTrigger();
+	closeAuditDateRangePopover();
 auditLogsOffset = 0;
 loadAuditLogs();
 }

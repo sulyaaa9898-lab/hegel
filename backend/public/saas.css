@@ -141,14 +141,15 @@ button:hover {
 .club {
   border: 1px solid rgba(125, 224, 205, 0.3);
   border-radius: 12px;
-  padding: 10px;
+  padding: 6px 8px;
   display: grid;
-  gap: 6px;
+  gap: 3px;
+  font-size: 0.95rem;
 }
 
 .club.active {
   border-color: var(--accent);
-  box-shadow: 0 0 0 1px rgba(125, 224, 205, 0.2) inset;
+  background: rgba(125, 224, 205, 0.06);
 }
 
 .badge {

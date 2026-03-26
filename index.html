@@ -26,7 +26,7 @@
       <small id="passwordMismatch" style="color:#f87171;display:none;margin-top:4px;">Пароли не совпадают</small>
     </div>
     <div id="nameField" class="auth-field" style="display:none;">
-      <label>Имя админа</label>
+        <label>Имя</label>
       <input type="text" id="adminName" class="auth-input">
     </div>
     <div id="authInlineError" class="auth-inline-error" style="display:none;"></div>
@@ -385,9 +385,9 @@
         <div id="donePage" style="display:none;" data-platform="pc">
           <div style="display:flex;justify-content:space-between;margin-bottom:14px;align-items:center;gap:10px;flex-wrap:wrap;">
             <div style="display:flex;gap:8px;flex-wrap:wrap;flex:1;min-width:240px;">
-              <input type="text" id="doneSearchName"  placeholder="Имя…"  style="flex:1;min-width:90px;">
-              <input type="text" id="doneSearchPhone" placeholder="Телефон…" style="flex:1;min-width:90px;">
-              <input type="text" id="doneSearchPC"    placeholder="PC…"    style="flex:1;min-width:70px;">
+              <input type="text" id="doneSearchName" style="flex:1;min-width:90px;">
+              <input type="text" id="doneSearchPhone" style="flex:1;min-width:90px;">
+              <input type="text" id="doneSearchPC" style="flex:1;min-width:70px;">
               <select id="doneSearchDate" style="flex:1;min-width:90px;">
                 <option value="">Все даты</option>
               </select>
@@ -412,7 +412,7 @@
             <span class="dashboard-sub">Рейтинг и карточки клиентов клуба</span>
           </div>
           <div style="display:flex;justify-content:space-between;margin-bottom:16px;align-items:center;gap:12px;">
-            <input type="text" id="guestSearchInput" placeholder="Поиск по имени или телефону…" style="flex:1;max-width:360px;">
+            <input type="text" id="guestSearchInput" style="flex:1;max-width:360px;">
             <button type="button" onclick="hideGuestsPage()">← Назад</button>
           </div>
           <div class="guests-container" id="guestsContainer"></div>
@@ -443,14 +443,13 @@
             <h2>Журнал действий</h2>
             <span class="dashboard-sub">Все действия администраторов клуба</span>
           </div>
-          <div style="display:flex;gap:8px;align-items:center;">
-            <button type="button" onclick="loadAuditLogs()">Обновить</button>
+          <div class="audit-toolbar">
             <button type="button" onclick="downloadAuditLogs()">Скачать XLSX</button>
           </div>
         </div>
-        <div class="section-card">
-          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
-            <div>
+        <div class="section-card section-card-compact section-card-compact--logs">
+          <div class="filters-grid logs-filters-grid">
+            <div class="filter-field filter-field--md">
               <div class="audit-filter-label">Действие</div>
               <select id="auditFilterAction" onchange="loadAuditLogs()">
                 <option value="">Все действия</option>
@@ -474,25 +473,33 @@
                 <option value="PASSWORD_CHANGE">Смена пароля</option>
               </select>
             </div>
-            <div>
+            <div class="filter-field filter-field--md">
               <div class="audit-filter-label">Аккаунт</div>
               <select id="auditFilterAccount" onchange="loadAuditLogs()">
                 <option value="">Все аккаунты</option>
               </select>
             </div>
-            <div>
-              <div class="audit-filter-label">С даты</div>
-              <input type="datetime-local" id="auditFilterFrom" onchange="loadAuditLogs()">
+            <div class="filter-field filter-field--date-range">
+              <div class="audit-filter-label">Дата</div>
+              <div class="audit-date-picker" id="auditDatePicker">
+                <button type="button" id="auditDateRangeTrigger" class="audit-date-trigger" onclick="toggleAuditDateRangePopover()">Все даты</button>
+                <div id="auditDateRangePopover" class="audit-date-popover">
+                  <div class="audit-date-popover-row">
+                    <label for="auditFilterFrom">С</label>
+                    <input type="datetime-local" id="auditFilterFrom" onchange="handleAuditDateRangeChange()">
+                  </div>
+                  <div class="audit-date-popover-row">
+                    <label for="auditFilterTo">По</label>
+                    <input type="datetime-local" id="auditFilterTo" onchange="handleAuditDateRangeChange()">
+                  </div>
+                </div>
+              </div>
             </div>
-            <div>
-              <div class="audit-filter-label">По дату</div>
-              <input type="datetime-local" id="auditFilterTo" onchange="loadAuditLogs()">
-            </div>
-            <div>
+            <div class="filter-field filter-field--md">
               <div class="audit-filter-label">ID брони</div>
-              <input type="text" id="auditFilterBookingUid" placeholder="PC-123 или PS-456" onchange="loadAuditLogs()">
+              <input type="text" id="auditFilterBookingUid" onchange="loadAuditLogs()">
             </div>
-            <div style="display:flex;gap:8px;align-items:flex-end;">
+            <div class="filter-actions audit-filter-actions">
               <button type="button" onclick="loadAuditLogs()">Применить</button>
               <button type="button" onclick="resetAuditFilters()">Сбросить</button>
             </div>
@@ -525,18 +532,15 @@
             <h2>История броней</h2>
             <span class="dashboard-sub">Полная история изменений по выбранной брони</span>
           </div>
-          <div style="display:flex;gap:8px;align-items:center;">
-            <button type="button" onclick="loadBookingHistory()">Обновить</button>
-          </div>
         </div>
 
-        <div class="section-card">
-          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
-            <div>
+        <div class="section-card section-card-compact section-card-compact--narrow">
+          <div class="filters-grid">
+            <div class="filter-field filter-field--lg">
               <div class="audit-filter-label">ID брони</div>
-              <input type="text" id="bookingHistoryUidInput" placeholder="PC-a1b2@c3d4 или PS-a1b2@c3d4" onchange="loadBookingHistory()">
+              <input type="text" id="bookingHistoryUidInput" onchange="loadBookingHistory()">
             </div>
-            <div style="display:flex;gap:8px;align-items:flex-end;">
+            <div class="filter-actions">
               <button type="button" onclick="loadBookingHistory()">Применить</button>
               <button type="button" onclick="resetBookingHistory()">Сбросить</button>
             </div>
@@ -567,22 +571,19 @@
             <h2>История клиентов</h2>
             <span class="dashboard-sub">Все брони выбранного клиента по номеру телефона</span>
           </div>
-          <div style="display:flex;gap:8px;align-items:center;">
-            <button type="button" onclick="loadCustomerHistory()">Обновить</button>
-          </div>
         </div>
 
-        <div class="section-card">
-          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
-            <div>
+        <div class="section-card section-card-compact section-card-compact--narrow">
+          <div class="filters-grid">
+            <div class="filter-field filter-field--md">
               <div class="audit-filter-label">Телефон клиента</div>
-              <input type="text" id="customerHistoryPhoneInput" placeholder="+7 777 123 45 67" onchange="loadCustomerHistory()">
+              <input type="text" id="customerHistoryPhoneInput" onchange="loadCustomerHistory()">
             </div>
-            <div>
+            <div class="filter-field filter-field--md">
               <div class="audit-filter-label">Имя клиента</div>
-              <input type="text" id="customerHistoryNameInput" readonly placeholder="Выберите клиента из логов">
+              <input type="text" id="customerHistoryNameInput" readonly>
             </div>
-            <div style="display:flex;gap:8px;align-items:flex-end;">
+            <div class="filter-actions">
               <button type="button" onclick="loadCustomerHistory()">Применить</button>
               <button type="button" onclick="resetCustomerHistory()">Сбросить</button>
             </div>
@@ -625,12 +626,13 @@
           <span class="dashboard-sub">Управление администраторами клуба и invite-ссылкой</span>
         </div>
 
-        <div class="section-card">
+        <div class="section-card section-card-compact section-card-compact--narrow">
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
             <button type="button" onclick="generateAdminInvite()">Сгенерировать invite для админа</button>
             <button type="button" onclick="copyAdminInviteLink()">Копировать invite</button>
+            <div id="adminInviteNotification" class="admin-invite-toast" style="display:none;margin-left:auto;padding:6px 10px;border-radius:6px;font-size:0.8125rem;font-weight:400;white-space:nowrap;color:#d1fae5;background:rgba(20,83,56,0.6);border:1px solid rgba(34,197,94,0.25);"></div>
           </div>
-          <input id="adminsPageInviteLink" type="text" readonly style="margin-top:10px;width:100%;" placeholder="/register?token=...">
+          <input id="adminsPageInviteLink" class="compact-readonly-input" type="text" readonly style="margin-top:10px;width:100%;">
         </div>
 
         <div id="adminsPageList" class="section-card" style="display:flex;flex-direction:column;gap:10px;"></div>
@@ -688,7 +690,7 @@
     <h3>Администраторы</h3>
     <div style="margin-bottom:12px;">
       <button type="button" onclick="generateAdminInvite()">Сгенерировать invite для админа</button>
-      <input id="adminInviteLink" type="text" readonly style="margin-top:8px;width:100%;" placeholder="/register?token=...">
+      <input id="adminInviteLink" type="text" readonly style="margin-top:8px;width:100%;">
       <button type="button" onclick="copyAdminInviteLink()" style="margin-top:8px;">Копировать invite</button>
     </div>
     <div id="adminList"></div>
@@ -858,7 +860,7 @@
       </div>
       <div class="field">
         <label>Предоплата</label>
-        <input type="text" id="editPCPrepay" placeholder="50">
+        <input type="text" id="editPCPrepay">
       </div>
       <div class="modal-buttons" style="flex-direction:row;">
         <button type="submit">Сохранить</button>
