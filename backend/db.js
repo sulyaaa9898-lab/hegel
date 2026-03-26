@@ -265,6 +265,23 @@ async function createTables(db) {
         FOREIGN KEY(admin_id) REFERENCES admins(id)
       )`,
 
+      // CLUB TASKS table
+      `CREATE TABLE IF NOT EXISTS club_tasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        club_id INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT,
+        is_done INTEGER NOT NULL DEFAULT 0,
+        is_urgent INTEGER NOT NULL DEFAULT 0,
+        created_by_admin_id INTEGER,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        resolved_at TEXT,
+        deleted_at TEXT,
+        FOREIGN KEY(club_id) REFERENCES clubs(id),
+        FOREIGN KEY(created_by_admin_id) REFERENCES admins(id)
+      )`,
+
       // Create indices
       `CREATE INDEX IF NOT EXISTS idx_bookings_pc_date ON bookings_pc(date_value)`,
       `CREATE INDEX IF NOT EXISTS idx_bookings_pc_phone ON bookings_pc(phone)`,
@@ -280,6 +297,9 @@ async function createTables(db) {
       `CREATE INDEX IF NOT EXISTS idx_invite_tokens_expires_at ON invite_tokens(expires_at)`,
       `CREATE INDEX IF NOT EXISTS idx_admin_active_sessions_admin ON admin_active_sessions(admin_id)`,
       `CREATE INDEX IF NOT EXISTS idx_admin_active_sessions_expires_at ON admin_active_sessions(expires_at)`,
+      `CREATE INDEX IF NOT EXISTS idx_club_tasks_club_id ON club_tasks(club_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_club_tasks_done_urgent ON club_tasks(club_id, is_done, is_urgent)`,
+      `CREATE INDEX IF NOT EXISTS idx_club_tasks_created_at ON club_tasks(created_at)`,
       `CREATE INDEX IF NOT EXISTS idx_clubs_slug ON clubs(slug)`,
       `CREATE INDEX IF NOT EXISTS idx_clubs_status ON clubs(subscription_status, is_enabled)`,
       `CREATE UNIQUE INDEX IF NOT EXISTS idx_club_devices_unique ON club_devices(club_id, device_type, device_code)`,

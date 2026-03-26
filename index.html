@@ -53,7 +53,9 @@
            document.getElementById('customerHistorySection').style.display='none';
            document.getElementById('ownerStatsSection').style.display='none';
            document.getElementById('adminsSection').style.display='none';
+           document.getElementById('tasksSection').style.display='none';
            if(window.refreshDashboard) window.refreshDashboard();
+           if(window.loadDashboardTasksWidget) window.loadDashboardTasksWidget();
            return false;
          ">
         <span class="nav-icon">
@@ -79,6 +81,7 @@
            document.getElementById('customerHistorySection').style.display='none';
            document.getElementById('ownerStatsSection').style.display='none';
            document.getElementById('adminsSection').style.display='none';
+           document.getElementById('tasksSection').style.display='none';
            switchPlatform('pc');
            if(window.resetPcTableFilters) window.resetPcTableFilters();
            return false;
@@ -104,6 +107,7 @@
            document.getElementById('customerHistorySection').style.display='none';
            document.getElementById('ownerStatsSection').style.display='none';
            document.getElementById('adminsSection').style.display='none';
+           document.getElementById('tasksSection').style.display='none';
            switchPlatform('ps');
            return false;
          ">
@@ -135,6 +139,7 @@
            document.getElementById('customerHistorySection').style.display='none';
            document.getElementById('ownerStatsSection').style.display='none';
            document.getElementById('adminsSection').style.display='none';
+           document.getElementById('tasksSection').style.display='none';
            switchPlatform('pc');
            showGuestsPage();
            return false;
@@ -206,6 +211,19 @@
           </svg>
         </span>
         <span class="nav-label">История клиентов</span>
+      </button>
+
+      <button id="tasksBtn" class="nav-item" type="button" style="display:none;"
+              onclick="showTasksPage();">
+        <span class="nav-icon">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="1.5" y="1.5" width="11" height="11" rx="1.8" stroke="currentColor" stroke-width="1.2"/>
+            <line x1="4.5" y1="5" x2="9.8" y2="5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+            <line x1="4.5" y1="7" x2="9.8" y2="7" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+            <line x1="4.5" y1="9" x2="8" y2="9" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <span class="nav-label">Задачи</span>
       </button>
     </nav>
 
@@ -304,6 +322,12 @@
             <div class="activity-list" id="activityList"></div>
           </div>
 
+          <div class="section-card section-card-notifications" id="dashTasksCard" style="display:none;">
+            <div class="section-card-header">
+              <span class="section-card-title">Задачи</span>
+            </div>
+            <div class="activity-list" id="dashTasksList"></div>
+          </div>
         </div>
       </div>
 
@@ -642,13 +666,66 @@
           </div>
           <div class="section-card owner-analytics-card">
             <div class="section-card-header">
-              <span class="section-card-title">Бронирования на неделю</span>
+              <span class="section-card-title">Бронирования на текущую неделю</span>
             </div>
             <div id="ownerAnalyticsCard3" class="owner-insights-content"></div>
+          </div>
+          <div class="section-card owner-analytics-card">
+            <div class="section-card-header">
+              <span class="section-card-title">Предоплаты на текущую неделю</span>
+            </div>
+            <div id="ownerAnalyticsCard4" class="owner-insights-content"></div>
           </div>
         </div>
         <div class="owner-stats-layout">
           <div id="ownerStatsPageContent" class="owner-stats-grid"></div>
+        </div>
+      </div>
+
+      <div id="tasksSection" style="display:none; flex-direction:column; gap:24px;">
+        <div class="dashboard-heading">
+          <h2>Задачи клуба</h2>
+          <span class="dashboard-sub">Фиксация проблем и срочных задач по клубу</span>
+        </div>
+
+        <div class="tasks-layout">
+          <!-- Left: create form -->
+          <div class="tasks-sidebar">
+            <div class="section-card tasks-create-card">
+              <div class="section-card-header">
+                <span class="section-card-title">Новая задача</span>
+              </div>
+              <div class="tasks-create-body">
+                <div class="filter-field">
+                  <div class="audit-filter-label">Кратко о проблеме</div>
+                  <input type="text" id="taskTitleInput" maxlength="200" style="max-width:100%;">
+                </div>
+                <div class="filter-field">
+                  <div class="audit-filter-label">Описание</div>
+                  <textarea id="taskDescriptionInput" maxlength="2000" rows="4"></textarea>
+                </div>
+                <div class="tasks-actions-row">
+                  <label class="tasks-urgent-toggle"><input type="checkbox" id="taskUrgentInput"> Срочно</label>
+                  <button type="button" onclick="createClubTask()">Добавить</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: filter + list -->
+          <div class="tasks-main">
+            <div class="section-card tasks-filter-card">
+              <div class="tasks-filter-row">
+                <span class="tasks-filter-label">Фильтр</span>
+                <select id="tasksStatusFilter" onchange="loadClubTasks()">
+                  <option value="all">Все</option>
+                  <option value="open">Открытые</option>
+                  <option value="done">Выполненные</option>
+                </select>
+              </div>
+            </div>
+            <div id="tasksList" class="tasks-list"></div>
+          </div>
         </div>
       </div>
 
@@ -736,6 +813,32 @@
     <h3>Статистика клуба</h3>
     <div id="ownerStatsContent" class="owner-stats-grid"></div>
     <button type="button" onclick="closeOwnerStatsModal()" style="margin-top:20px;">Закрыть</button>
+  </div>
+</div>
+
+<div id="ownerPrepayDayModal" class="modal">
+  <div class="modal-content owner-prepay-modal-content">
+    <h3 id="ownerPrepayDayTitle">Предоплаты за день</h3>
+    <p id="ownerPrepayDaySummary" class="owner-prepay-modal-summary">Броней с предоплатой: 0 • Сумма: 0 ₸</p>
+    <div class="owner-prepay-modal-table-wrap">
+      <table class="owner-prepay-modal-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Время</th>
+            <th>Клиент</th>
+            <th>Телефон</th>
+            <th>ПК</th>
+            <th>Статус</th>
+            <th>Предоплата</th>
+          </tr>
+        </thead>
+        <tbody id="ownerPrepayDayTableBody"></tbody>
+      </table>
+    </div>
+    <div class="modal-buttons" style="flex-direction:row;">
+      <button type="button" onclick="closeOwnerPrepayDayModal()">Закрыть</button>
+    </div>
   </div>
 </div>
 

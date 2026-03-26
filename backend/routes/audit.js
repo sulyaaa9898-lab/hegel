@@ -135,10 +135,9 @@ function csvEscape(value) {
 }
 
 router.use(requireAuth);
-router.use(requireClubOwnerOrRoot);
 
 function appendScope(query, params, req) {
-  if (!req.auth.isRoot && (req.auth.role === CLUB_OWNER_ROLE || req.auth.isClubOwner)) {
+  if (!req.auth.isRoot && req.auth.clubId) {
     query += ' AND l.club_id = ?';
     params.push(Number(req.auth.clubId));
   }
@@ -223,7 +222,7 @@ async function attachBookingUids(db, rows) {
   }));
 }
 
-router.get('/logs', async (req, res, next) => {
+router.get('/logs', requireClubOwnerOrRoot, async (req, res, next) => {
   try {
     const db = req.app.locals.db;
     const { action, admin_id, from, to, entity, booking_uid, limit, offset } = req.query;
@@ -355,7 +354,7 @@ router.get('/customer-history/:phone', async (req, res, next) => {
                    LEFT JOIN admins a ON a.id = b.admin_id
                    WHERE 1=1`;
 
-    if (!req.auth.isRoot && (req.auth.role === CLUB_OWNER_ROLE || req.auth.isClubOwner)) {
+    if (!req.auth.isRoot && req.auth.clubId) {
       pcQuery += ' AND b.club_id = ?';
       psQuery += ' AND b.club_id = ?';
       scopeParams.push(Number(req.auth.clubId));
@@ -423,7 +422,7 @@ router.get('/customer-history/:phone', async (req, res, next) => {
                         LEFT JOIN admins a ON a.id = l.admin_id
                         WHERE l.booking_uid IN (${placeholders})`;
 
-      if (!req.auth.isRoot && (req.auth.role === CLUB_OWNER_ROLE || req.auth.isClubOwner)) {
+      if (!req.auth.isRoot && req.auth.clubId) {
         auditQuery += ' AND l.club_id = ?';
         auditParams.push(Number(req.auth.clubId));
       }
@@ -481,7 +480,7 @@ router.get('/customer-history/:phone', async (req, res, next) => {
   }
 });
 
-router.post('/export', async (req, res, next) => {
+router.post('/export', requireClubOwnerOrRoot, async (req, res, next) => {
   try {
     const db = req.app.locals.db;
     const { action, admin_id, from, to, entity, booking_uid } = req.body || {};

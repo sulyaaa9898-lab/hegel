@@ -26,6 +26,38 @@ let bookingNotificationIntervalId = null;
 const MAX_DASHBOARD_NOTIFICATIONS = 10;
 const NOTIFICATION_TIMESTAMPS_KEY = 'cyber_notification_timestamps_v1';
 const LATE_SUMMARY_TIMESTAMP_KEY = 'booking-late-summary';
+const OWNER_STATS_UI_STATE_KEY = 'owner_stats_ui_state_v1';
+
+function getDefaultOwnerStatsUiState() {
+  return {
+    pcRange: 'month',
+    topClientsExpanded: false,
+    worstClientsExpanded: false
+  };
+}
+
+function loadOwnerStatsUiState() {
+  try {
+    const raw = sessionStorage.getItem(OWNER_STATS_UI_STATE_KEY);
+    if (!raw) return getDefaultOwnerStatsUiState();
+    const parsed = JSON.parse(raw);
+    return {
+      ...getDefaultOwnerStatsUiState(),
+      ...(parsed && typeof parsed === 'object' ? parsed : {})
+    };
+  } catch (_) {
+    return getDefaultOwnerStatsUiState();
+  }
+}
+
+let ownerStatsUiState = loadOwnerStatsUiState();
+
+function saveOwnerStatsUiState() {
+  try {
+    sessionStorage.setItem(OWNER_STATS_UI_STATE_KEY, JSON.stringify(ownerStatsUiState));
+  } catch (_) {
+  }
+}
 
 const notificationTypes = {
   BOOKING_LATE: 'booking-late',
@@ -378,12 +410,14 @@ const statsBtn = document.getElementById('statsBtn');
 const logsBtn = document.getElementById('logsBtn');
 const bookingHistoryBtn = document.getElementById('bookingHistoryBtn');
 const customerHistoryBtn = document.getElementById('customerHistoryBtn');
+const tasksBtn = document.getElementById('tasksBtn');
 
 if (adminBtn) adminBtn.style.display = canManage ? 'flex' : 'none';
 if (statsBtn) statsBtn.style.display = canViewStatsAndHistory ? 'flex' : 'none';
 if (logsBtn) logsBtn.style.display = ownerOnly ? 'flex' : 'none';
 if (bookingHistoryBtn) bookingHistoryBtn.style.display = canViewStatsAndHistory ? 'flex' : 'none';
 if (customerHistoryBtn) customerHistoryBtn.style.display = canViewStatsAndHistory ? 'flex' : 'none';
+if (tasksBtn) tasksBtn.style.display = canViewStatsAndHistory ? 'flex' : 'none';
 }
 
 function expandSidebar() {
@@ -1333,6 +1367,7 @@ window.resetPcTableFilters = function() {
 
 window._filterPrepayOnly = false;
 window._filterLateOnly = false;
+window.loadDashboardTasksWidget = loadDashboardTasksWidget;
 
 window.openPcTabToday = function(prepayOnly) {
   document.querySelectorAll('.nav-item').forEach(function(el) { el.classList.remove('active'); });
@@ -1340,7 +1375,7 @@ window.openPcTabToday = function(prepayOnly) {
   if (navPC) navPC.classList.add('active');
   document.getElementById('dashboardSection').style.display = 'none';
   document.getElementById('bookingsSection').style.display = 'flex';
-  ['logsSection','bookingHistorySection','customerHistorySection','ownerStatsSection','adminsSection']
+  ['logsSection','bookingHistorySection','customerHistorySection','ownerStatsSection','adminsSection','tasksSection']
     .forEach(function(id) { var el = document.getElementById(id); if (el) el.style.display = 'none'; });
   window._filterPrepayOnly = !!prepayOnly;
   window._filterLateOnly = false;
@@ -1358,7 +1393,7 @@ window.openPsTab = function() {
   if (navPS) navPS.classList.add('active');
   document.getElementById('dashboardSection').style.display = 'none';
   document.getElementById('bookingsSection').style.display = 'flex';
-  ['logsSection','bookingHistorySection','customerHistorySection','ownerStatsSection','adminsSection']
+  ['logsSection','bookingHistorySection','customerHistorySection','ownerStatsSection','adminsSection','tasksSection']
     .forEach(function(id) { var el = document.getElementById(id); if (el) el.style.display = 'none'; });
   switchPlatform('ps');
 };
@@ -1369,7 +1404,7 @@ window.openAllPcTab = function() {
   if (navPC) navPC.classList.add('active');
   document.getElementById('dashboardSection').style.display = 'none';
   document.getElementById('bookingsSection').style.display = 'flex';
-  ['logsSection','bookingHistorySection','customerHistorySection','ownerStatsSection','adminsSection']
+  ['logsSection','bookingHistorySection','customerHistorySection','ownerStatsSection','adminsSection','tasksSection']
     .forEach(function(id) { var el = document.getElementById(id); if (el) el.style.display = 'none'; });
   window._filterPrepayOnly = false;
   window._filterLateOnly = false;
@@ -1386,7 +1421,7 @@ window.openLateBookingsFromNotification = function() {
   if (navPC) navPC.classList.add('active');
   document.getElementById('dashboardSection').style.display = 'none';
   document.getElementById('bookingsSection').style.display = 'flex';
-  ['logsSection','bookingHistorySection','customerHistorySection','ownerStatsSection','adminsSection']
+  ['logsSection','bookingHistorySection','customerHistorySection','ownerStatsSection','adminsSection','tasksSection']
     .forEach(function(id) { var el = document.getElementById(id); if (el) el.style.display = 'none'; });
   switchPlatform('pc');
   window._filterPrepayOnly = false;
@@ -1970,6 +2005,10 @@ return new Date(b.addedAt || 0).getTime() - new Date(a.addedAt || 0).getTime();
 const latestBooking = relatedBookings[0] || null;
 const guestName = latestBooking?.name || 'Неизвестный';
 if (searchVal && !guest.phone.toLowerCase().includes(searchVal) && !guestName.toLowerCase().includes(searchVal)) return;
+const displayPhoneDigits = cleanPhone((latestBooking && latestBooking.phone) || guest.phone || '');
+const guestPhoneDisplay = displayPhoneDigits
+? formatPhone(displayPhoneDigits)
+: (String((latestBooking && latestBooking.phone) || guest.phone || '—').trim() || '—');
 
 let ratingColor = '#4caf50';
 if (guest.rating < 90) ratingColor = '#2196f3';
@@ -1996,7 +2035,7 @@ card.innerHTML = `
 <div class="guest-card-top">
 	<div>
 		<div class="guest-name">${escapeHtml(guestName)}</div>
-		<div class="guest-phone">${escapeHtml(guest.phone || '—')}</div>
+    <div class="guest-phone">${escapeHtml(guestPhoneDisplay)}</div>
 	</div>
 	<span class="rating-badge ${getRatingBadgeClass(Number(guest.rating || 0))}">${Math.round(Number(guest.rating || 0))}%</span>
 </div>
@@ -2593,6 +2632,7 @@ document.getElementById('logsSection').style.display = 'none';
 document.getElementById('bookingHistorySection').style.display = 'none';
 document.getElementById('customerHistorySection').style.display = 'none';
 document.getElementById('ownerStatsSection').style.display = 'none';
+document.getElementById('tasksSection').style.display = 'none';
 document.getElementById('adminsSection').style.display = 'flex';
 document.querySelectorAll('.nav-item').forEach(function(el) { el.classList.remove('active'); });
 document.getElementById('adminBtn').classList.add('active');
@@ -2906,8 +2946,32 @@ const allBookings = [
 ...(Array.isArray(done) ? done : [])
 ].filter((b) => b && b.pc && b.time && b.dateValue);
 
+const parseBookingPrepaymentAmount = (value) => {
+  if (value === null || value === undefined) return 0;
+  const normalized = String(value).trim().toLowerCase();
+  if (!normalized || normalized === 'нет' || normalized === '0' || normalized === 'false') return 0;
+  const numeric = Number.parseFloat(normalized.replace(',', '.').replace(/[^\d.\-]/g, ''));
+  if (!Number.isFinite(numeric) || numeric <= 0) return 0;
+  return numeric;
+};
+
+const formatDateShortRu = (dateValue) => {
+  const raw = String(dateValue || '').trim();
+  const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return raw;
+  return `${m[3]}.${m[2]}`;
+};
+
+const formatLocalDateKey = (date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
 const guestRatingsList = Object.values(guestRatings || {});
 const now = new Date();
+const todayKey = formatLocalDateKey(now);
 
 // Get current calendar week (Monday to Sunday)
 const weekStart = new Date(now);
@@ -2969,16 +3033,17 @@ const topPcsLastWeek = calculatePcCounts(weekPcBookings);
 const topPcsLastMonth = calculatePcCounts(monthPcBookings);
 const topPcsAllTime = calculatePcCounts(allBookings);
 
-// Calculate peak hour interval
-const hourCounts = new Map();
+// Calculate today's peak interval by 2-hour windows
+const twoHourCounts = new Map();
 allBookings.forEach((booking) => {
+if (String(booking.dateValue || '').trim() !== todayKey) return;
 const hourPart = Number.parseInt(String(booking.time).split(':')[0], 10);
-if (Number.isInteger(hourPart) && hourPart >= 0 && hourPart <= 23) {
-hourCounts.set(hourPart, (hourCounts.get(hourPart) || 0) + 1);
-}
+if (!Number.isInteger(hourPart) || hourPart < 0 || hourPart > 23) return;
+const slotStartHour = Math.floor(hourPart / 2) * 2;
+twoHourCounts.set(slotStartHour, (twoHourCounts.get(slotStartHour) || 0) + 1);
 });
 
-const peakHourEntry = Array.from(hourCounts.entries()).sort((a, b) => {
+const peakHourEntry = Array.from(twoHourCounts.entries()).sort((a, b) => {
 if (b[1] !== a[1]) return b[1] - a[1];
 return a[0] - b[0];
 })[0] || null;
@@ -2986,9 +3051,10 @@ return a[0] - b[0];
 let peakInterval = '—';
 let peakCount = 0;
 if (peakHourEntry) {
-const hour = peakHourEntry[0];
+const hour = Number(peakHourEntry[0]);
+const toHour = Math.min(23, hour + 1);
 const from = `${String(hour).padStart(2, '0')}:00`;
-const to = `${String(hour).padStart(2, '0')}:59`;
+const to = `${String(toHour).padStart(2, '0')}:59`;
 peakInterval = `${from} - ${to}`;
 peakCount = peakHourEntry[1];
 }
@@ -2998,20 +3064,37 @@ const weekdaysRuMonFirst = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'в�
 const weeklyBookings = weekdaysRuMonFirst.map((name, index) => {
   const date = new Date(weekStart);
   date.setDate(weekStart.getDate() + index);
-  const dateStr = date.toISOString().split('T')[0];
-  const isCurrent = dateStr === now.toISOString().split('T')[0];
+  const dateStr = formatLocalDateKey(date);
+  const isCurrent = dateStr === todayKey;
   return { name, count: 0, isCurrent, dateStr };
 });
 
 const weeklyBookingsByDate = new Map(weeklyBookings.map((item) => [item.dateStr, item]));
 
+const weeklyPrepayments = weekdaysRuMonFirst.map((name, index) => {
+  const date = new Date(weekStart);
+  date.setDate(weekStart.getDate() + index);
+  const dateStr = formatLocalDateKey(date);
+  const isCurrent = dateStr === todayKey;
+  return { name, amount: 0, isCurrent, dateStr, dateShort: formatDateShortRu(dateStr) };
+});
+const weeklyPrepaymentsByDate = new Map(weeklyPrepayments.map((item) => [item.dateStr, item]));
+
 allBookings.forEach((booking) => {
   const bDate = new Date(`${booking.dateValue}T00:00:00`);
   if (Number.isNaN(bDate.getTime()) || bDate < weekStart || bDate > weekEnd) return;
-  const dateStr = bDate.toISOString().split('T')[0];
+  const dateStr = formatLocalDateKey(bDate);
   const dayEntry = weeklyBookingsByDate.get(dateStr);
   if (dayEntry) {
     dayEntry.count++;
+  }
+
+  const prepaymentAmount = parseBookingPrepaymentAmount(booking.prepay);
+  if (prepaymentAmount > 0) {
+    const prepayEntry = weeklyPrepaymentsByDate.get(dateStr);
+    if (prepayEntry) {
+      prepayEntry.amount += prepaymentAmount;
+    }
   }
 });
 
@@ -3051,15 +3134,16 @@ const topClients = clientsByRating
 if (b.rating !== a.rating) return b.rating - a.rating;
 return a.name.localeCompare(b.name, 'ru-RU');
 })
-.slice(0, 5);
+.slice(0, 10);
 
 const worstClients = clientsByRating
 .slice()
+.filter((item) => item.rating < 100)
 .sort((a, b) => {
 if (a.rating !== b.rating) return a.rating - b.rating;
 return a.name.localeCompare(b.name, 'ru-RU');
 })
-.slice(0, 5);
+.slice(0, 10);
 
 return {
 total: allBookings.length,
@@ -3069,6 +3153,7 @@ topPcsAllTime,
 peakInterval,
 peakCount,
 weeklyBookings,
+weeklyPrepayments,
 topClients,
 worstClients
 };
@@ -3078,14 +3163,16 @@ function renderOwnerStatsInsights(insights) {
 const card1 = document.getElementById('ownerAnalyticsCard1');
 const card2 = document.getElementById('ownerAnalyticsCard2');
 const card3 = document.getElementById('ownerAnalyticsCard3');
+const card4 = document.getElementById('ownerAnalyticsCard4');
 
-if (!card1 || !card2 || !card3) return;
+if (!card1 || !card2 || !card3 || !card4) return;
 
 if (!insights || !insights.total) {
 const emptyMsg = '<div class="owner-insight-empty">Недостаточно данных</div>';
 card1.innerHTML = emptyMsg;
 card2.innerHTML = emptyMsg;
 card3.innerHTML = emptyMsg;
+card4.innerHTML = emptyMsg;
 return;
 }
 
@@ -3104,37 +3191,45 @@ const topPcsAllTimeHtml = insights.topPcsAllTime && insights.topPcsAllTime.lengt
 
 card1.innerHTML = `
 <div class="owner-time-toggle-inline">
-  <button type="button" class="owner-time-toggle-small" onclick="togglePcTimeRangeInline(this, 'week', 'ownerAnalyticsCard1')">Неделя</button>
-  <button type="button" class="owner-time-toggle-small active" onclick="togglePcTimeRangeInline(this, 'month', 'ownerAnalyticsCard1')">Месяц</button>
-  <button type="button" class="owner-time-toggle-small" onclick="togglePcTimeRangeInline(this, 'all-time', 'ownerAnalyticsCard1')">Всё время</button>
+  <button type="button" class="owner-time-toggle-small ${ownerStatsUiState.pcRange === 'week' ? 'active' : ''}" onclick="togglePcTimeRangeInline(this, 'week', 'ownerAnalyticsCard1')">Неделя</button>
+  <button type="button" class="owner-time-toggle-small ${ownerStatsUiState.pcRange === 'month' ? 'active' : ''}" onclick="togglePcTimeRangeInline(this, 'month', 'ownerAnalyticsCard1')">Месяц</button>
+  <button type="button" class="owner-time-toggle-small ${ownerStatsUiState.pcRange === 'all-time' ? 'active' : ''}" onclick="togglePcTimeRangeInline(this, 'all-time', 'ownerAnalyticsCard1')">Всё время</button>
 </div>
-<div class="owner-pcs-week-inline" style="display:none;">
+<div class="owner-pcs-week-inline" style="display:${ownerStatsUiState.pcRange === 'week' ? '' : 'none'};">
   ${topPcsWeekHtml}
 </div>
-<div class="owner-pcs-month-inline">
+<div class="owner-pcs-month-inline" style="display:${ownerStatsUiState.pcRange === 'month' ? '' : 'none'};">
   ${topPcsHtml}
 </div>
-<div class="owner-pcs-all-time-inline" style="display:none;">
+<div class="owner-pcs-all-time-inline" style="display:${ownerStatsUiState.pcRange === 'all-time' ? '' : 'none'};">
   ${topPcsAllTimeHtml}
 </div>
 `;
 
 // Card 2: Guest Ratings
-const topClientsHtml = Array.isArray(insights.topClients) && insights.topClients.length > 0
-? `<ol class="owner-clients-list">${insights.topClients.map((item) => {
+const renderClientListItems = (items) => items.map((item) => {
 const safePhoneArg = String(item.phoneRaw || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 const safeNameArg = String(item.name || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 return `<li><button type="button" class="audit-booking-link" onclick="openCustomerHistoryByPhone('${safePhoneArg}', '${safeNameArg}')">${escapeHtml(item.name)}</button><strong>${Math.round(item.rating)}%</strong></li>`;
-}).join('')}</ol>`
-: '<div class="owner-insight-empty">Нет данных</div>';
+}).join('');
 
-const worstClientsHtml = Array.isArray(insights.worstClients) && insights.worstClients.length > 0
-? `<ol class="owner-clients-list">${insights.worstClients.map((item) => {
-const safePhoneArg = String(item.phoneRaw || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-const safeNameArg = String(item.name || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-return `<li><button type="button" class="audit-booking-link" onclick="openCustomerHistoryByPhone('${safePhoneArg}', '${safeNameArg}')">${escapeHtml(item.name)}</button><strong>${Math.round(item.rating)}%</strong></li>`;
-}).join('')}</ol>`
-: '<div class="owner-insight-empty">Нет данных</div>';
+const buildCollapsibleClientList = (items, listKey, isExpanded) => {
+if (!Array.isArray(items) || items.length === 0) {
+return '<div class="owner-insight-empty">Нет данных</div>';
+}
+const initial = items.slice(0, 5);
+const extra = items.slice(5);
+const initialHtml = `<ol class="owner-clients-list">${renderClientListItems(initial)}</ol>`;
+if (extra.length === 0) {
+return initialHtml;
+}
+const extraHtml = `<div class="owner-clients-more" style="display:${isExpanded ? '' : 'none'};"><ol class="owner-clients-list">${renderClientListItems(extra)}</ol></div>`;
+const expandBtn = `<button type="button" class="owner-clients-expand-btn ${isExpanded ? 'is-expanded' : ''}" onclick="toggleClientListExpand(this)" aria-expanded="${isExpanded ? 'true' : 'false'}" title="Показать еще"><span class="owner-clients-expand-arrow">▾</span></button>`;
+return `<div class="owner-clients-collapsible" data-list-key="${listKey}">${initialHtml}${extraHtml}${expandBtn}</div>`;
+};
+
+const topClientsHtml = buildCollapsibleClientList(insights.topClients, 'top', !!ownerStatsUiState.topClientsExpanded);
+const worstClientsHtml = buildCollapsibleClientList(insights.worstClients, 'worst', !!ownerStatsUiState.worstClientsExpanded);
 
 card2.innerHTML = `
 <div class="owner-rating-section">
@@ -3159,7 +3254,7 @@ const weeklyHtml = Array.isArray(insights.weeklyBookings) && insights.weeklyBook
 
 const peakIntervalHtml = `
 <div class="owner-peak-info">
-  <div class="owner-peak-label">Пиковый:</div>
+  <div class="owner-peak-label">Максимум броней на сегодня в промежутке:</div>
   <div class="owner-peak-time">${escapeHtml(insights.peakInterval)}</div>
   <div class="owner-peak-count">Броней: ${insights.peakCount}</div>
 </div>
@@ -3169,6 +3264,18 @@ card3.innerHTML = `
 ${weeklyHtml}
 ${peakIntervalHtml}
 `;
+
+// Card 4: Weekly prepayments (vertical weekdays)
+const weeklyPrepaymentsHtml = Array.isArray(insights.weeklyPrepayments) && insights.weeklyPrepayments.length > 0
+? `<div class="owner-weekly-prepay-list">${insights.weeklyPrepayments.map((day) => `
+<button type="button" class="owner-weekly-prepay-row ${day.isCurrent ? 'is-current' : ''}" onclick="openOwnerPrepayDayModal('${String(day.dateStr || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'")}', '${String(day.name || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'")}', '${String(day.dateShort || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')">
+  <span class="owner-weekly-prepay-name-wrap"><span class="owner-weekly-prepay-name">${escapeHtml(day.name)}</span><span class="owner-weekly-prepay-date">${escapeHtml(day.dateShort || '')}</span></span>
+  <strong class="owner-weekly-prepay-count">${Math.round(day.amount || 0).toLocaleString('ru-RU')} ₸</strong>
+</button>
+`).join('')}</div>`
+: '<div class="owner-insight-empty">Нет данных</div>';
+
+card4.innerHTML = weeklyPrepaymentsHtml;
 }
 
 function toggleAccordionBox(headerElement) {
@@ -3219,6 +3326,118 @@ if (monthContainer) monthContainer.style.display = '';
 } else if (range === 'all-time') {
 if (allTimeContainer) allTimeContainer.style.display = '';
 }
+
+ownerStatsUiState.pcRange = range;
+saveOwnerStatsUiState();
+}
+
+function toggleClientListExpand(buttonElement) {
+const wrap = buttonElement.closest('.owner-clients-collapsible');
+if (!wrap) return;
+const more = wrap.querySelector('.owner-clients-more');
+if (!more) return;
+const listKey = wrap.getAttribute('data-list-key');
+
+const isExpanded = buttonElement.getAttribute('aria-expanded') === 'true';
+if (isExpanded) {
+more.style.display = 'none';
+buttonElement.setAttribute('aria-expanded', 'false');
+buttonElement.classList.remove('is-expanded');
+if (listKey === 'top') ownerStatsUiState.topClientsExpanded = false;
+if (listKey === 'worst') ownerStatsUiState.worstClientsExpanded = false;
+} else {
+more.style.display = '';
+buttonElement.setAttribute('aria-expanded', 'true');
+buttonElement.classList.add('is-expanded');
+if (listKey === 'top') ownerStatsUiState.topClientsExpanded = true;
+if (listKey === 'worst') ownerStatsUiState.worstClientsExpanded = true;
+}
+saveOwnerStatsUiState();
+}
+
+function collectOwnerPrepaymentsByDate(dateStr) {
+const normalizedDate = String(dateStr || '').trim();
+if (!normalizedDate) return [];
+
+const parseAmount = (value) => {
+  if (value === null || value === undefined) return 0;
+  const normalized = String(value).trim().toLowerCase();
+  if (!normalized || normalized === 'нет' || normalized === '0' || normalized === 'false') return 0;
+  const numeric = Number.parseFloat(normalized.replace(',', '.').replace(/[^\d.\-]/g, ''));
+  if (!Number.isFinite(numeric) || numeric <= 0) return 0;
+  return numeric;
+};
+
+const allBookings = [
+...(Array.isArray(bookings) ? bookings : []),
+...(Array.isArray(done) ? done : [])
+].filter((item) => item && String(item.dateValue || '').trim() === normalizedDate);
+
+return allBookings
+  .map((item) => ({
+    uid: String(item.uid || item.booking_uid || item.id || '').trim(),
+    name: String(item.name || '—').trim() || '—',
+    phone: String(item.phone || '—').trim() || '—',
+    pc: String(item.pc || '—').trim() || '—',
+    time: String(item.time || '—').trim() || '—',
+    status: String(item.status || '—').trim() || '—',
+    prepayAmount: parseAmount(item.prepay)
+  }))
+  .filter((item) => item.prepayAmount > 0)
+  .sort((a, b) => {
+    const tA = String(a.time || '');
+    const tB = String(b.time || '');
+    return tA.localeCompare(tB, 'ru-RU');
+  });
+}
+
+function openOwnerPrepayDayModal(dateStr, dayName, dayShort) {
+const modal = document.getElementById('ownerPrepayDayModal');
+const title = document.getElementById('ownerPrepayDayTitle');
+const summary = document.getElementById('ownerPrepayDaySummary');
+const tbody = document.getElementById('ownerPrepayDayTableBody');
+if (!modal || !title || !summary || !tbody) return;
+
+const toRuStatus = (status) => {
+  const normalized = String(status || '').trim().toLowerCase();
+  if (!normalized || normalized === '—') return '—';
+  if (normalized === 'arrived') return 'Пришел';
+  if (normalized === 'late') return 'Опоздал';
+  if (normalized === 'cancelled') return 'Отмена';
+  if (normalized === 'deleted') return 'Удален';
+  if (normalized === 'pending') return 'Ожидает';
+  if (normalized === 'no-show' || normalized === 'noshow') return 'Не пришел';
+  if (normalized === 'booked' || normalized === 'active') return 'Забронирован';
+  return status;
+};
+
+const rows = collectOwnerPrepaymentsByDate(dateStr);
+const totalAmount = rows.reduce((sum, row) => sum + Number(row.prepayAmount || 0), 0);
+
+title.textContent = `Предоплаты: ${String(dayName || '').toUpperCase()} ${String(dayShort || '')}`;
+summary.textContent = `Броней с предоплатой: ${rows.length} • Сумма: ${Math.round(totalAmount).toLocaleString('ru-RU')} ₸`;
+
+tbody.innerHTML = rows.length > 0
+? rows.map((row) => `
+<tr>
+  <td>${row.uid ? `<button type="button" class="audit-booking-link" onclick="closeOwnerPrepayDayModal(); openBookingHistoryByUid('${String(row.uid).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')">${escapeHtml(row.uid)}</button>` : '—'}</td>
+  <td>${escapeHtml(row.time)}</td>
+  <td>${row.phone && row.phone !== '—' ? `<button type="button" class="audit-booking-link" onclick="closeOwnerPrepayDayModal(); openCustomerHistoryByPhone('${String(row.phone).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}', '${String(row.name || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')">${escapeHtml(row.name)}</button>` : escapeHtml(row.name)}</td>
+  <td>${escapeHtml(row.phone)}</td>
+  <td>${escapeHtml(row.pc)}</td>
+  <td>${escapeHtml(toRuStatus(row.status))}</td>
+  <td>${Math.round(row.prepayAmount).toLocaleString('ru-RU')} ₸</td>
+</tr>
+`).join('')
+: '<tr><td colspan="7" class="owner-prepay-modal-empty">Нет предоплат за этот день</td></tr>';
+
+modal.style.display = 'flex';
+}
+
+function closeOwnerPrepayDayModal() {
+const modal = document.getElementById('ownerPrepayDayModal');
+if (!modal) return;
+modal.style.display = 'none';
 }
 
 function togglePcTimeRange(buttonElement, range) {
@@ -3281,6 +3500,7 @@ document.getElementById('logsSection').style.display = 'none';
 document.getElementById('bookingHistorySection').style.display = 'none';
 document.getElementById('customerHistorySection').style.display = 'none';
 document.getElementById('adminsSection').style.display = 'none';
+document.getElementById('tasksSection').style.display = 'none';
 document.getElementById('ownerStatsSection').style.display = 'flex';
 document.querySelectorAll('.nav-item').forEach(function(el) { el.classList.remove('active'); });
 document.getElementById('statsBtn').classList.add('active');
@@ -3289,6 +3509,179 @@ await refreshOwnerStatsPageContent();
 }
 function closeOwnerStatsModal() {
 document.getElementById('ownerStatsModal').style.display = 'none';
+}
+
+function formatTaskDate(value) {
+const date = new Date(value || 0);
+if (Number.isNaN(date.getTime())) return '—';
+return date.toLocaleString('ru-RU', {
+day: '2-digit',
+month: '2-digit',
+year: 'numeric',
+hour: '2-digit',
+minute: '2-digit'
+});
+}
+
+function renderTasksList(tasks) {
+const list = document.getElementById('tasksList');
+if (!list) return;
+
+if (!Array.isArray(tasks) || tasks.length === 0) {
+list.innerHTML = '<div class="audit-empty">Задач пока нет</div>';
+return;
+}
+
+list.innerHTML = tasks.map((task) => {
+const id = Number(task.id);
+const safeTitle = escapeHtml(task.title || 'Без названия');
+const safeDesc = escapeHtml(task.description || '');
+const author = escapeHtml(task.created_by_name || task.created_by_login || 'Неизвестно');
+const createdAt = escapeHtml(formatTaskDate(task.created_at));
+const done = !!task.is_done;
+const urgentBadge = task.is_urgent ? '<span class="task-urgent-badge">Срочно</span>' : '';
+const doneButton = done
+? `<button type="button" class="ghost" onclick="toggleClubTaskDone(${id}, false)">Вернуть в работу</button>`
+: `<button type="button" class="ghost" onclick="toggleClubTaskDone(${id}, true)">Выполнено</button>`;
+
+return `
+<div class="task-card ${done ? 'is-done' : ''}">
+<div class="task-card-top">
+<div class="task-title">${safeTitle}</div>
+${urgentBadge}
+</div>
+${safeDesc ? `<div class="task-desc">${safeDesc}</div>` : ''}
+<div class="task-meta">Добавил: ${author} • ${createdAt}</div>
+<div class="task-actions">
+${doneButton}
+<button type="button" class="danger" onclick="deleteClubTask(${id})">Удалить</button>
+</div>
+</div>`;
+}).join('');
+}
+
+async function loadClubTasks() {
+if (!canViewHistoryAndStats()) return;
+const list = document.getElementById('tasksList');
+const filter = document.getElementById('tasksStatusFilter');
+const status = filter ? String(filter.value || 'all') : 'all';
+if (list) {
+list.innerHTML = '<div class="audit-empty">Загрузка задач...</div>';
+}
+try {
+const data = await apiRequest('/tasks?status=' + encodeURIComponent(status));
+renderTasksList((data && data.tasks) ? data.tasks : []);
+} catch (error) {
+if (list) {
+list.innerHTML = '<div class="audit-empty">Не удалось загрузить задачи</div>';
+}
+notify(error.message || 'Ошибка загрузки задач', 'Ошибка');
+}
+}
+
+async function createClubTask() {
+if (!canViewHistoryAndStats()) return;
+const titleInput = document.getElementById('taskTitleInput');
+const descriptionInput = document.getElementById('taskDescriptionInput');
+const urgentInput = document.getElementById('taskUrgentInput');
+const title = titleInput ? String(titleInput.value || '').trim() : '';
+const description = descriptionInput ? String(descriptionInput.value || '').trim() : '';
+const isUrgent = urgentInput ? !!urgentInput.checked : false;
+
+if (!title) {
+notify('Введите краткое описание задачи', 'Ошибка');
+return;
+}
+
+try {
+await apiRequest('/tasks', {
+method: 'POST',
+body: JSON.stringify({
+title,
+description,
+is_urgent: isUrgent
+})
+});
+if (titleInput) titleInput.value = '';
+if (descriptionInput) descriptionInput.value = '';
+if (urgentInput) urgentInput.checked = false;
+await loadClubTasks();
+notify('✅ Задача добавлена', 'Успешно');
+} catch (error) {
+notify(error.message || 'Ошибка создания задачи', 'Ошибка');
+}
+}
+
+async function toggleClubTaskDone(taskId, done) {
+if (!canViewHistoryAndStats()) return;
+try {
+await apiRequest('/tasks/' + encodeURIComponent(String(taskId)), {
+method: 'PATCH',
+body: JSON.stringify({ is_done: !!done })
+});
+await loadClubTasks();
+} catch (error) {
+notify(error.message || 'Ошибка обновления задачи', 'Ошибка');
+}
+}
+
+function deleteClubTask(taskId) {
+if (!canViewHistoryAndStats()) return;
+confirmAction('Удалить эту задачу?', async () => {
+try {
+await apiRequest('/tasks/' + encodeURIComponent(String(taskId)), { method: 'DELETE' });
+await loadClubTasks();
+} catch (error) {
+notify(error.message || 'Ошибка удаления задачи', 'Ошибка');
+}
+}, 'Удаление задачи');
+}
+
+async function loadDashboardTasksWidget() {
+const card = document.getElementById('dashTasksCard');
+const list = document.getElementById('dashTasksList');
+if (!card || !list) return;
+if (!canViewHistoryAndStats()) {
+card.style.display = 'none';
+return;
+}
+card.style.display = '';
+try {
+const data = await apiRequest('/tasks?status=open');
+const tasks = (data && data.tasks) ? data.tasks : [];
+if (tasks.length === 0) {
+list.innerHTML = '<div class="activity-item"><span class="activity-dot gray"></span><div class="activity-content"><div class="activity-text">Активных задач нет</div></div></div>';
+return;
+}
+list.innerHTML = tasks.map(task => {
+const safeTitle = escapeHtml(task.title || 'Без названия');
+const urgentDot = task.is_urgent ? 'red' : 'gray';
+return `<div class="activity-item" style="cursor:pointer;" onclick="showTasksPage()">
+<span class="activity-dot ${urgentDot}"></span>
+<div class="activity-content"><div class="activity-text">${safeTitle}</div></div>
+</div>`;
+}).join('');
+} catch (_) {
+list.innerHTML = '<div class="activity-item"><span class="activity-dot gray"></span><div class="activity-content"><div class="activity-text">Не удалось загрузить задачи</div></div></div>';
+}
+}
+
+async function showTasksPage() {
+if (!canViewHistoryAndStats()) {
+notify('❌ Недостаточно прав для просмотра задач', 'Ошибка');
+return;
+}
+document.getElementById('dashboardSection').style.display = 'none';
+document.getElementById('bookingsSection').style.display = 'none';
+document.getElementById('logsSection').style.display = 'none';
+document.getElementById('bookingHistorySection').style.display = 'none';
+document.getElementById('customerHistorySection').style.display = 'none';
+document.getElementById('ownerStatsSection').style.display = 'none';
+document.getElementById('adminsSection').style.display = 'none';
+document.getElementById('tasksSection').style.display = 'flex';
+document.querySelectorAll('.nav-item').forEach(function(el) { el.classList.remove('active'); });
+document.getElementById('tasksBtn').classList.add('active');
+await loadClubTasks();
 }
 const ACTION_LABELS = {
 LOGIN: 'Вход в систему',
@@ -3338,6 +3731,7 @@ document.getElementById('bookingHistorySection').style.display = 'none';
 document.getElementById('customerHistorySection').style.display = 'none';
 document.getElementById('ownerStatsSection').style.display = 'none';
 document.getElementById('adminsSection').style.display = 'none';
+document.getElementById('tasksSection').style.display = 'none';
 document.getElementById('logsSection').style.display = 'flex';
 document.querySelectorAll('.nav-item').forEach(function(el) { el.classList.remove('active'); });
 document.getElementById('logsBtn').classList.add('active');
@@ -3348,22 +3742,28 @@ await loadAuditAccountsFilter();
 loadAuditLogs();
 }
 
-async function showBookingHistoryPage() {
+async function showBookingHistoryPage(options) {
 if (!canViewHistoryAndStats()) {
 notify('❌ Недостаточно прав для просмотра истории броней', 'Ошибка');
 return;
 }
+const preserveFilters = !!(options && options.preserveFilters);
 document.getElementById('dashboardSection').style.display = 'none';
 document.getElementById('bookingsSection').style.display = 'none';
 document.getElementById('logsSection').style.display = 'none';
 document.getElementById('customerHistorySection').style.display = 'none';
 document.getElementById('ownerStatsSection').style.display = 'none';
 document.getElementById('adminsSection').style.display = 'none';
+document.getElementById('tasksSection').style.display = 'none';
 document.getElementById('bookingHistorySection').style.display = 'flex';
 document.querySelectorAll('.nav-item').forEach(function(el) { el.classList.remove('active'); });
 document.getElementById('bookingHistoryBtn').classList.add('active');
 if (!auditAccountsLoaded) {
 await loadAuditAccountsFilter();
+}
+if (!preserveFilters) {
+resetBookingHistory();
+return;
 }
 if (bookingHistoryCurrentUid) {
 const input = document.getElementById('bookingHistoryUidInput');
@@ -3380,23 +3780,29 @@ const auditInput = document.getElementById('auditFilterBookingUid');
 if (auditInput) auditInput.value = uid;
 const historyInput = document.getElementById('bookingHistoryUidInput');
 if (historyInput) historyInput.value = uid;
-showBookingHistoryPage();
+showBookingHistoryPage({ preserveFilters: true });
 }
 
-async function showCustomerHistoryPage() {
+async function showCustomerHistoryPage(options) {
 if (!canViewHistoryAndStats()) {
 notify('❌ Недостаточно прав для просмотра истории клиентов', 'Ошибка');
 return;
 }
+const preserveFilters = !!(options && options.preserveFilters);
 document.getElementById('dashboardSection').style.display = 'none';
 document.getElementById('bookingsSection').style.display = 'none';
 document.getElementById('logsSection').style.display = 'none';
 document.getElementById('bookingHistorySection').style.display = 'none';
 document.getElementById('ownerStatsSection').style.display = 'none';
 document.getElementById('adminsSection').style.display = 'none';
+document.getElementById('tasksSection').style.display = 'none';
 document.getElementById('customerHistorySection').style.display = 'flex';
 document.querySelectorAll('.nav-item').forEach(function(el) { el.classList.remove('active'); });
 document.getElementById('customerHistoryBtn').classList.add('active');
+if (!preserveFilters) {
+resetCustomerHistory();
+return;
+}
 const phoneInput = document.getElementById('customerHistoryPhoneInput');
 const nameInput = document.getElementById('customerHistoryNameInput');
 if (phoneInput) phoneInput.value = customerHistoryCurrentPhone;
@@ -3413,7 +3819,7 @@ const phoneInput = document.getElementById('customerHistoryPhoneInput');
 const nameInput = document.getElementById('customerHistoryNameInput');
 if (phoneInput) phoneInput.value = normalizedPhone;
 if (nameInput) nameInput.value = customerHistoryCurrentName;
-showCustomerHistoryPage();
+showCustomerHistoryPage({ preserveFilters: true });
 }
 
 async function loadAuditAccountsFilter() {
@@ -4871,6 +5277,7 @@ ensurePreferredPlatform();
 if (currentPlatform === 'ps') renderPSConsoles();
 else renderTable();
 startBookingNotificationMonitoring();
+loadDashboardTasksWidget();
 } catch (_) {
 }
 }

@@ -19,6 +19,7 @@ const [
   { default: guestsRoutes },
   { default: adminsRoutes },
   { default: auditRoutes },
+  { default: tasksRoutes },
   { default: ownerRoutes },
   { default: publicRoutes },
   { default: clubRoutes },
@@ -32,6 +33,7 @@ const [
   import('./routes/guests.js'),
   import('./routes/admins.js'),
   import('./routes/audit.js'),
+  import('./routes/tasks.js'),
   import('./routes/owner.js'),
   import('./routes/public.js'),
   import('./routes/club.js'),
@@ -93,6 +95,7 @@ app.use('/api/ps/consoles', psConsolesRoutes);
 app.use('/api/guests', guestsRoutes);
 app.use('/api/admins', adminsRoutes);
 app.use('/api/audit', auditRoutes);
+app.use('/api/tasks', tasksRoutes);
 app.use('/api/owner', ownerRoutes);
 
 app.get('/owner', (req, res) => {
