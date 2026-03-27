@@ -1115,7 +1115,7 @@ window.sendReminder = function(phone, name, time, pc) {
   const message = `Напоминаем: Ваша бронь на ${time} на ПК ${pc}. Ждем Вас! 😊`;
   const waLink = getWhatsAppLink(phone, message);
   if (waLink) {
-    window.open(waLink, '_blank', 'noopener,noreferrer');
+    window.location.href = waLink;
   }
 };
 
@@ -1803,8 +1803,6 @@ const waLink = getWhatsAppLink(b.phone);
 if (waLink) {
 const a = document.createElement('a');
 a.href = waLink;
-a.target = '_blank';
-a.rel = 'noopener noreferrer';
 a.className = 'phone-link';
 a.textContent = b.phone;
 phoneTd.appendChild(a);
