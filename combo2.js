@@ -1675,18 +1675,19 @@ if (!booking) {
 closePCStatusModal();
 return;
 }
+const snapshotBookings = JSON.parse(JSON.stringify(bookings));
+const snapshotDone = JSON.parse(JSON.stringify(done));
+const snapshotRatings = JSON.parse(JSON.stringify(guestRatings));
 const statuses = ensureBookingPCStatuses(booking);
 statuses[pc] = 'arrived';
 
 if (getPendingPCCount(booking) === 0) {
-const snapshotBookings = JSON.parse(JSON.stringify(bookings));
-const snapshotDone = JSON.parse(JSON.stringify(done));
-const snapshotRatings = JSON.parse(JSON.stringify(guestRatings));
 completeBookingAsArrived(index);
 saveAll();
 closePCStatusModal();
 notify('Все ПК отмечены как пришедшие. Бронь перенесена в выполненные.', 'Успешно');
 try {
+await syncUpdateBooking(booking);
 await syncBookingStatus(booking, 'arrived');
 } catch (_) {
 bookings = snapshotBookings;
@@ -1700,6 +1701,15 @@ return;
 
 saveAll();
 closePCStatusModal();
+try {
+await syncUpdateBooking(booking);
+} catch (_) {
+bookings = snapshotBookings;
+done = snapshotDone;
+guestRatings = snapshotRatings;
+saveAll();
+notify('Ошибка синхронизации с сервером. Изменение отменено.', 'Ошибка');
+}
 }
 function closeWarn() {
 document.getElementById('warnModal').style.display = 'none';
