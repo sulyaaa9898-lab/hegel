@@ -51,6 +51,12 @@ function loadOwnerStatsUiState() {
 }
 
 let ownerStatsUiState = loadOwnerStatsUiState();
+let selectedClientPhone = '';
+let selectedClientName = '';
+let selectedClientBookingUidFilter = '';
+let selectedClientHistoryRows = [];
+let selectedClientStatusFilter = 'all';
+let expandedClientPhone = '';
 
 function saveOwnerStatsUiState() {
   try {
@@ -415,8 +421,8 @@ const tasksBtn = document.getElementById('tasksBtn');
 if (adminBtn) adminBtn.style.display = canManage ? 'flex' : 'none';
 if (statsBtn) statsBtn.style.display = canViewStatsAndHistory ? 'flex' : 'none';
 if (logsBtn) logsBtn.style.display = ownerOnly ? 'flex' : 'none';
-if (bookingHistoryBtn) bookingHistoryBtn.style.display = canViewStatsAndHistory ? 'flex' : 'none';
-if (customerHistoryBtn) customerHistoryBtn.style.display = canViewStatsAndHistory ? 'flex' : 'none';
+if (bookingHistoryBtn) bookingHistoryBtn.style.display = 'none';
+if (customerHistoryBtn) customerHistoryBtn.style.display = 'none';
 if (tasksBtn) tasksBtn.style.display = canViewStatsAndHistory ? 'flex' : 'none';
 }
 
@@ -1527,7 +1533,7 @@ scheduleDateRefreshAtMidnight();
 const phoneInput = document.getElementById('phone');
 function cleanPhone(str) {
 let digits = str.replace(/\D/g, '');
-if (digits.startsWith('7') || digits.startsWith('8')) digits = digits.slice(1);
+if (digits.length === 11 && (digits.startsWith('7') || digits.startsWith('8'))) digits = digits.slice(1);
 return digits.slice(0, 10);
 }
 function formatPhone(digits) {
@@ -2005,77 +2011,416 @@ tr.appendChild(statusTd);
 tbody.appendChild(tr);
 });
 }
+function getBookingSortTimestamp(item) {
+const createdAt = item?.created_at || item?.addedAt || item?.updatedAt;
+if (createdAt) {
+const ts = new Date(createdAt).getTime();
+if (!Number.isNaN(ts)) return ts;
+}
+const dateRaw = String(item?.dateValue || item?.date_value || '').trim();
+const timeRaw = String(item?.time || '').trim();
+const normalizedTime = /^\d{2}:\d{2}$/.test(timeRaw) ? timeRaw : '00:00';
+if (/^\d{4}-\d{2}-\d{2}$/.test(dateRaw)) {
+const parsed = new Date(`${dateRaw}T${normalizedTime}:00`);
+if (!Number.isNaN(parsed.getTime())) return parsed.getTime();
+}
+if (/^\d{2}\.\d{2}\.\d{4}$/.test(dateRaw)) {
+const parts = dateRaw.split('.');
+const parsed = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T${normalizedTime}:00`);
+if (!Number.isNaN(parsed.getTime())) return parsed.getTime();
+}
+return 0;
+}
+
+function formatClientLastBookingLabel(item) {
+if (!item) return 'Нет данных';
+const createdAt = item.created_at || item.addedAt || item.updatedAt;
+if (createdAt) {
+const date = new Date(createdAt);
+const dateStr = date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+const timeStr = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', hour12: false });
+return `${dateStr} ${timeStr}`;
+}
+const dateLabel = item.dateDisplay || item.date_value || item.dateValue || '';
+const timeLabel = item.time || '';
+const value = [String(dateLabel || '').trim(), String(timeLabel || '').trim()].filter(Boolean).join(' · ');
+return value || 'Нет данных';
+}
+
+function formatBookingCreatedAtDisplay(item) {
+if (!item) return '—';
+const createdAt = item.created_at || item.addedAt || item.updatedAt;
+if (createdAt) {
+  const date = new Date(createdAt);
+  if (!Number.isNaN(date.getTime())) {
+    const dateStr = date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const timeStr = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', hour12: false });
+    return `${dateStr} ${timeStr}`;
+  }
+}
+return '—';
+}
+
+function getBookingDeviceDisplay(item) {
+if (!item) return '—';
+
+const pcRaw = item.pc;
+if (pcRaw !== null && pcRaw !== undefined && String(pcRaw).trim()) {
+  const pcList = Array.isArray(pcRaw)
+    ? pcRaw.map((value) => String(value).trim()).filter(Boolean)
+    : String(pcRaw)
+        .split(/[;,]/)
+        .map((value) => value.trim())
+        .filter(Boolean);
+
+  if (pcList.length === 1) return 'ПК-' + pcList[0];
+  if (pcList.length > 1) return 'ПК-' + pcList.slice(0, 2).join(',') + (pcList.length > 2 ? ' ...' : '');
+}
+
+const psId = item.ps_id || item.console_id;
+if (psId !== null && psId !== undefined && String(psId).trim()) {
+  return 'PS-' + String(psId).trim();
+}
+
+return '—';
+}
+
+function getClientSummaries() {
+const byPhone = new Map();
+const allBookings = [...(Array.isArray(bookings) ? bookings : []), ...(Array.isArray(done) ? done : [])];
+const ratingsByPhone = new Map();
+
+Object.values(guestRatings || {}).forEach((guest) => {
+const phoneKey = cleanPhone(guest?.phone || '');
+if (!phoneKey) return;
+ratingsByPhone.set(phoneKey, Number(guest?.rating || 0));
+byPhone.set(phoneKey, {
+phoneKey,
+phoneRaw: guest.phone || phoneKey,
+name: 'Неизвестный',
+rating: Number(guest?.rating || 0),
+totalBookings: 0,
+activeBookings: 0,
+completedBookings: 0,
+noShows: 0,
+latestBooking: null,
+latestBookingTs: 0,
+latestBookingUid: ''
+});
+});
+
+allBookings.forEach((bookingItem) => {
+const phoneKey = cleanPhone(bookingItem?.phone || '');
+if (!phoneKey) return;
+if (!byPhone.has(phoneKey)) {
+byPhone.set(phoneKey, {
+phoneKey,
+phoneRaw: bookingItem.phone || phoneKey,
+name: 'Неизвестный',
+totalBookings: 0,
+activeBookings: 0,
+latestBooking: null,
+latestBookingTs: 0,
+latestBookingUid: ''
+});
+}
+
+const entry = byPhone.get(phoneKey);
+entry.totalBookings += 1;
+const status = String(bookingItem?.status || '').toLowerCase();
+if (!status || status === 'pending') {
+entry.activeBookings += 1;
+} else {
+entry.completedBookings += 1;
+if (status === 'no-show') entry.noShows += 1;
+}
+
+const candidateName = String(bookingItem?.name || '').trim();
+if (candidateName) {
+entry.name = candidateName;
+}
+
+const candidateTs = getBookingSortTimestamp(bookingItem);
+if (candidateTs >= entry.latestBookingTs) {
+entry.latestBookingTs = candidateTs;
+entry.latestBooking = bookingItem;
+entry.latestBookingUid = String(bookingItem?.booking_uid || '').trim().toUpperCase();
+}
+});
+
+byPhone.forEach((entry, phoneKey) => {
+if (!entry.name || entry.name === 'Неизвестный') {
+const latestName = String(entry?.latestBooking?.name || '').trim();
+if (latestName) entry.name = latestName;
+}
+entry.rating = Number(ratingsByPhone.get(phoneKey) || entry.rating || 0);
+});
+
+return Array.from(byPhone.values()).sort((a, b) => {
+if (b.latestBookingTs !== a.latestBookingTs) return b.latestBookingTs - a.latestBookingTs;
+if (b.totalBookings !== a.totalBookings) return b.totalBookings - a.totalBookings;
+return String(a.name || '').localeCompare(String(b.name || ''), 'ru-RU');
+});
+}
+
+function updateSelectedGuestCardState() {
+const selectedKey = cleanPhone(selectedClientPhone || '');
+document.querySelectorAll('#guestsContainer .client-list-item').forEach((card) => {
+const cardPhone = String(card.getAttribute('data-phone-key') || '');
+const isSelected = selectedKey && cardPhone === selectedKey;
+card.classList.toggle('is-selected', Boolean(isSelected));
+});
+}
+
+function getSelectedClientFilteredRows() {
+const filterUid = String(selectedClientBookingUidFilter || '').trim().toUpperCase();
+const filterStatus = String(selectedClientStatusFilter || 'all').toLowerCase().trim();
+const rows = Array.isArray(selectedClientHistoryRows) ? selectedClientHistoryRows : [];
+return rows.filter((item) => {
+if (filterUid) {
+const uid = String(item?.booking_uid || '').trim().toUpperCase();
+if (!uid.includes(filterUid)) return false;
+}
+if (filterStatus && filterStatus !== 'all') {
+const itemStatus = normalizeClientBookingStatus(item?.deleted_at ? 'deleted' : (item?.status || ''));
+if (itemStatus !== filterStatus) return false;
+}
+return true;
+});
+}
+
+async function loadExpandedClientRows(phone, name) {
+const normalizedPhone = String(phone || '').trim();
+if (!normalizedPhone) return;
+
+selectedClientPhone = normalizedPhone;
+selectedClientName = String(name || '').trim() || selectedClientName || 'Клиент';
+selectedClientHistoryRows = [];
+selectedClientStatusFilter = 'all';
+selectedClientBookingUidFilter = '';
+
+try {
+const phoneDigits = String(normalizedPhone).replace(/\D/g, '');
+const tenDigits = phoneDigits.length === 11 && (phoneDigits.startsWith('7') || phoneDigits.startsWith('8'))
+? phoneDigits.slice(1)
+: (phoneDigits.length >= 10 ? phoneDigits.slice(-10) : phoneDigits);
+const requestPhones = Array.from(new Set([
+normalizedPhone,
+tenDigits,
+tenDigits ? ('7' + tenDigits) : '',
+tenDigits ? ('8' + tenDigits) : ''
+].filter(Boolean)));
+
+let rows = [];
+let data = null;
+for (const requestPhone of requestPhones) {
+  const response = await apiRequest('/audit/customer-history/' + encodeURIComponent(requestPhone));
+  const candidateRows = Array.isArray(response?.bookings) ? response.bookings.slice() : [];
+  data = response;
+  if (candidateRows.length) {
+    rows = candidateRows;
+    break;
+  }
+}
+rows.sort((a, b) => {
+const tsB = getBookingSortTimestamp(b);
+const tsA = getBookingSortTimestamp(a);
+return tsB - tsA;
+});
+selectedClientHistoryRows = rows;
+if (data?.customer_name) {
+selectedClientName = String(data.customer_name || '').trim() || selectedClientName;
+}
+} catch (_) {
+selectedClientHistoryRows = [];
+}
+}
+
+async function toggleClientAccordion(phone, name) {
+const key = cleanPhone(phone || '');
+if (!key) return;
+
+if (expandedClientPhone === key) {
+expandedClientPhone = '';
+selectedClientPhone = '';
+selectedClientName = '';
+selectedClientBookingUidFilter = '';
+selectedClientHistoryRows = [];
+renderGuests();
+return;
+}
+
+expandedClientPhone = key;
+selectedClientBookingUidFilter = '';
+selectedClientHistoryRows = [];
+selectedClientPhone = String(phone || '').trim();
+selectedClientName = String(name || '').trim() || 'Клиент';
+renderGuests();
+
+await loadExpandedClientRows(phone, name);
+renderGuests();
+}
+
+function getClientRowsStats(rows) {
+const list = Array.isArray(rows) ? rows : [];
+const total = list.length;
+const active = list.filter((item) => {
+const status = normalizeClientBookingStatus(item?.deleted_at ? 'deleted' : (item?.status || ''));
+return status === 'pending';
+}).length;
+const noShow = list.filter((item) => normalizeClientBookingStatus(item?.deleted_at ? 'deleted' : (item?.status || '')) === 'no-show').length;
+const completed = list.filter((item) => normalizeClientBookingStatus(item?.deleted_at ? 'deleted' : (item?.status || '')) === 'completed').length;
+return { total, active, completed, noShow };
+}
+
+function applyClientBookingUidFilter(phone, filterValue) {
+const key = cleanPhone(phone || '');
+if (!key || cleanPhone(selectedClientPhone || '') !== key) return;
+selectedClientBookingUidFilter = String(filterValue || '').trim().toUpperCase();
+renderGuests();
+}
+
+function applyClientStatusFilter(phone, filterValue) {
+const key = cleanPhone(phone || '');
+if (!key || cleanPhone(selectedClientPhone || '') !== key) return;
+selectedClientStatusFilter = String(filterValue || 'all').toLowerCase().trim();
+renderGuests();
+}
+
+function resetClientBookingUidFilter(phone) {
+const key = cleanPhone(phone || '');
+if (!key || cleanPhone(selectedClientPhone || '') !== key) return;
+selectedClientBookingUidFilter = '';
+const input = document.getElementById('clientBookingUidFilterInput');
+if (input) input.value = '';
+renderGuests();
+}
+
+async function openClientDetails(phone, name) {
+await toggleClientAccordion(phone, name);
+}
+
 function renderGuests() {
 const container = document.getElementById('guestsContainer');
 if (!container) return;
 container.innerHTML = '';
-const searchVal = document.getElementById('guestSearchInput')?.value.toLowerCase() || '';
-const guestList = Object.values(guestRatings).sort((a, b) => b.rating - a.rating);
-guestList.forEach(guest => {
-const relatedBookings = bookings.concat(done)
-.filter(b => cleanPhone(b.phone || '') === cleanPhone(guest.phone || ''))
-.sort((a, b) => {
-// Сортируем только по времени создания брони (новые первыми)
-return new Date(b.addedAt || 0).getTime() - new Date(a.addedAt || 0).getTime();
-});
-const latestBooking = relatedBookings[0] || null;
-const guestName = latestBooking?.name || 'Неизвестный';
-if (searchVal && !guest.phone.toLowerCase().includes(searchVal) && !guestName.toLowerCase().includes(searchVal)) return;
-const displayPhoneDigits = cleanPhone((latestBooking && latestBooking.phone) || guest.phone || '');
-const guestPhoneDisplay = displayPhoneDigits
-? formatPhone(displayPhoneDigits)
-: (String((latestBooking && latestBooking.phone) || guest.phone || '—').trim() || '—');
 
-let ratingColor = '#4caf50';
-if (guest.rating < 90) ratingColor = '#2196f3';
-if (guest.rating < 70) ratingColor = '#ffc107';
-if (guest.rating < 50) ratingColor = '#f44336';
+const searchVal = String(document.getElementById('guestSearchInput')?.value || '').toLowerCase();
+const summaries = getClientSummaries();
 
-const activeCount = bookings.filter(b => cleanPhone(b.phone || '') === cleanPhone(guest.phone || '')).length;
-const completedCount = done.filter(b => cleanPhone(b.phone || '') === cleanPhone(guest.phone || '')).length;
-const latestBookingLabel = latestBooking
-? [latestBooking.dateDisplay || latestBooking.dateValue || '', latestBooking.time || ''].filter(Boolean).join(' · ')
-: 'Нет данных';
-const safePhoneArg = String(guest.phone || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+summaries.forEach((summary) => {
+const guestName = String(summary.name || 'Неизвестный').trim() || 'Неизвестный';
+const rawPhone = summary.phoneRaw || summary.phoneKey;
+const requestPhone = String(summary.phoneKey || rawPhone || '').trim();
+const displayPhoneDigits = cleanPhone(rawPhone || '');
+const guestPhoneDisplay = displayPhoneDigits ? formatPhone(displayPhoneDigits) : (String(rawPhone || '—').trim() || '—');
+if (searchVal && !guestPhoneDisplay.toLowerCase().includes(searchVal) && !guestName.toLowerCase().includes(searchVal)) return;
+const safePhoneArg = String(requestPhone || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 const safeNameArg = String(guestName || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-const safeBookingUidArg = latestBooking && latestBooking.booking_uid
-? String(latestBooking.booking_uid).replace(/\\/g, '\\\\').replace(/'/g, "\\'")
-: '';
-const latestBookingButton = safeBookingUidArg
-? `<button type="button" class="guest-action-btn guest-action-btn--secondary" onclick="openBookingHistoryByUid('${safeBookingUidArg}')">Последняя бронь</button>`
-: '';
+const isExpanded = cleanPhone(expandedClientPhone || '') === cleanPhone(summary.phoneKey || '');
+const expandedHistoryRows = isExpanded && cleanPhone(selectedClientPhone || '') === cleanPhone(summary.phoneKey || '')
+? (Array.isArray(selectedClientHistoryRows) ? selectedClientHistoryRows : [])
+: [];
+const selectedRows = isExpanded && cleanPhone(selectedClientPhone || '') === cleanPhone(summary.phoneKey || '')
+? getSelectedClientFilteredRows()
+: [];
+const loadingExpanded = isExpanded && cleanPhone(selectedClientPhone || '') === cleanPhone(summary.phoneKey || '') && !selectedClientHistoryRows.length;
+const effectiveLatestBooking = expandedHistoryRows.length ? expandedHistoryRows[0] : summary.latestBooking;
+const latestBookingLabel = formatClientLastBookingLabel(effectiveLatestBooking);
+const latestUid = String((expandedHistoryRows.length ? expandedHistoryRows[0]?.booking_uid : summary.latestBookingUid) || '').trim().toUpperCase();
+const safeUidArg = latestUid.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+const effectiveStats = expandedHistoryRows.length ? getClientRowsStats(expandedHistoryRows) : {
+total: Number(summary.totalBookings || 0),
+active: Number(summary.activeBookings || 0),
+completed: Number(summary.completedBookings || 0),
+noShow: Number(summary.noShows || 0)
+};
+
+let expandedTableHtml = '';
+if (isExpanded) {
+if (loadingExpanded) {
+expandedTableHtml = '<div class="audit-empty" style="padding:12px 0;">Загрузка...</div>';
+} else if (!selectedRows.length) {
+expandedTableHtml = '<div class="audit-empty" style="padding:12px 0;">История клиента не найдена</div>';
+} else {
+const rowsHtml = selectedRows.map((item) => {
+const bookingUid = String(item.booking_uid || '').trim().toUpperCase();
+const safeRowUid = bookingUid.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+const createdDisplay = formatBookingCreatedAtDisplay(item);
+const dateText = item.date_value || '—';
+const dateTimeDisplay = dateText !== '—' && item.time ? escapeHtml(dateText) + ' ' + escapeHtml(item.time) : (dateText !== '—' ? escapeHtml(dateText) : '—');
+const statusRaw = item.deleted_at ? 'deleted' : (item.status || '');
+const statusText = translateBookingStatus(statusRaw);
+const accountText = item.admin_name || item.admin_login || item.created_by_name || item.created_by_login || '—';
+const deviceDisplay = getBookingDeviceDisplay(item);
+const uidCell = bookingUid
+? `<button type="button" class="audit-booking-link" onclick="openBookingHistoryByUid('${safeRowUid}')">${escapeHtml(bookingUid)}</button>`
+: '—';
+return '<tr>' +
+`<td class="audit-cell-details">${uidCell}</td>` +
+`<td class="audit-cell-who">${escapeHtml(item.name || '—')}</td>` +
+`<td class="audit-cell-phone">${escapeHtml(item.phone || '—')}</td>` +
+`<td class="audit-cell-time">${escapeHtml(createdDisplay)}</td>` +
+`<td class="audit-cell-who">${escapeHtml(accountText)}</td>` +
+`<td>${escapeHtml(deviceDisplay)}</td>` +
+`<td class="audit-cell-time">${dateTimeDisplay}</td>` +
+`<td>${escapeHtml(statusText)}</td>` +
+'</tr>';
+}).join('');
+expandedTableHtml = `<div class="client-expanded-table-wrap"><table class="audit-table"><thead><tr><th>ID брони</th><th>Клиент</th><th>Телефон</th><th>Добавлено</th><th>Аккаунт</th><th>Тип</th><th>Дата и время</th><th>Статус</th></tr></thead><tbody>${rowsHtml}</tbody></table></div>`;
+}
+}
+
+const uidLinkHtml = safeUidArg
+  ? '<button type="button" class="client-inline-link" onclick="openBookingHistoryByUid(\'' + safeUidArg + '\')">ID ' + escapeHtml(latestUid) + '</button>'
+  : '<span>ID: —</span>';
+const expandedSectionHtml = isExpanded ? (
+  '<div class="client-list-expanded">' +
+  '<div class="client-expanded-inline">' +
+  '<span>Всего: <strong>' + escapeHtml(String(effectiveStats.total || 0)) + '</strong></span>' +
+  '<span>Активные: <strong>' + escapeHtml(String(effectiveStats.active || 0)) + '</strong></span>' +
+  '<span>Завершённые: <strong>' + escapeHtml(String(effectiveStats.completed || 0)) + '</strong></span>' +
+  '<span>Неявки: <strong>' + escapeHtml(String(effectiveStats.noShow || 0)) + '</strong></span>' +
+  '</div>' +
+  '<div class="client-expanded-inline client-expanded-inline--actions">' +
+  '<span>Последняя: <strong>' + escapeHtml(latestBookingLabel) + '</strong></span>' +
+  uidLinkHtml +
+  '</div>' +
+  '<div class="client-expanded-filter">' +
+  '<input type="text" id="clientBookingUidFilterInput" placeholder="Фильтр по ID" value="' + escapeHtml(String(selectedClientBookingUidFilter || '')) + '" oninput="applyClientBookingUidFilter(\'' + safePhoneArg + '\', this.value)">' +
+  '<select id="clientStatusFilterSelect" onchange="applyClientStatusFilter(\'' + safePhoneArg + '\', this.value)" style="height:24px;padding:1px 6px;background:rgba(255,255,255,0.08);border:1px solid rgba(244,244,245,0.15);border-radius:6px;color:#f4f4f5;font-size:0.73rem;cursor:pointer;">' +
+  '<option value="all"' + (String(selectedClientStatusFilter || 'all').toLowerCase() === 'all' ? ' selected' : '') + '>Все</option>' +
+  '<option value="pending"' + (String(selectedClientStatusFilter || '').toLowerCase() === 'pending' ? ' selected' : '') + '>Ожидает</option>' +
+  '<option value="completed"' + (String(selectedClientStatusFilter || '').toLowerCase() === 'completed' ? ' selected' : '') + '>Завершена</option>' +
+  '<option value="cancelled"' + (String(selectedClientStatusFilter || '').toLowerCase() === 'cancelled' ? ' selected' : '') + '>Отменена</option>' +
+  '<option value="no-show"' + (String(selectedClientStatusFilter || '').toLowerCase() === 'no-show' ? ' selected' : '') + '>Не пришел</option>' +
+  '</select>' +
+  '</div>' +
+  expandedTableHtml +
+  '</div>'
+) : '';
 
 const card = document.createElement('div');
-card.className = 'guest-card';
-card.innerHTML = `
-<div class="guest-card-top">
-	<div>
-		<div class="guest-name">${escapeHtml(guestName)}</div>
-    <div class="guest-phone">${escapeHtml(guestPhoneDisplay)}</div>
-	</div>
-	<span class="rating-badge ${getRatingBadgeClass(Number(guest.rating || 0))}">${Math.round(Number(guest.rating || 0))}%</span>
-</div>
-<div class="guest-summary-grid">
-	<div class="guest-summary-item"><span>Всего броней</span><strong>${escapeHtml(String(guest.total || 0))}</strong></div>
-	<div class="guest-summary-item"><span>Активные</span><strong>${escapeHtml(String(activeCount))}</strong></div>
-	<div class="guest-summary-item"><span>Завершённые</span><strong>${escapeHtml(String(completedCount))}</strong></div>
-	<div class="guest-summary-item"><span>Неявки</span><strong>${escapeHtml(String(guest.noShow || 0))}</strong></div>
-</div>
-<div class="guest-stats">Пришёл: ${escapeHtml(String(guest.arrived || 0))} · Опозданий: ${escapeHtml(String(guest.late || 0))} · Отмен: ${escapeHtml(String(guest.cancelled || 0))}</div>
-<div class="guest-last-booking">
-	<span class="guest-last-booking-label">Последняя бронь</span>
-	<span class="guest-last-booking-value">${escapeHtml(latestBookingLabel)}</span>
-</div>
-<div class="guest-rating-bar"><div class="guest-rating-fill" style="width:${Math.max(0, Math.min(100, Number(guest.rating || 0)))}%;background-color:${ratingColor};"></div></div>
-<div class="guest-card-actions">
-	<button type="button" class="guest-action-btn" onclick="openCustomerHistoryByPhone('${safePhoneArg}', '${safeNameArg}')">История клиента</button>
-	${latestBookingButton}
-</div>`;
+card.className = 'client-list-item';
+card.setAttribute('data-phone-key', String(summary.phoneKey || ''));
+card.setAttribute('data-expanded', isExpanded ? 'true' : 'false');
+card.innerHTML =
+  '<button type="button" class="client-list-row" onclick="toggleClientAccordion(\'' + safePhoneArg + '\', \'' + safeNameArg + '\')">' +
+  '<span class="client-list-meta">' +
+  '<span class="client-list-name">' + escapeHtml(guestName) + '</span>' +
+  '<span class="client-list-phone">' + escapeHtml(guestPhoneDisplay) + '</span>' +
+  '</span>' +
+  '<span class="client-list-rating ' + getRatingBadgeClass(Number(summary.rating || 0)) + '">' + Math.round(Number(summary.rating || 0)) + '%</span>' +
+  '</button>' +
+  expandedSectionHtml;
 container.appendChild(card);
 });
+
 if (!container.children.length) {
 container.innerHTML = '<div class="audit-empty">Клиенты не найдены</div>';
 }
+
+updateSelectedGuestCardState();
 }
 function openActionModal(index) {
 currentBookingIndex = index;
@@ -2346,6 +2691,7 @@ const searchPanel = document.getElementById('searchPanel');
 const addBtn = document.querySelector('button[onclick="toggleAddPanel()"]');
 const searchBtn = document.querySelector('button[onclick="toggleSearchPanel()"]');
 	const auditDatePicker = document.getElementById('auditDatePicker');
+const guestsPage = document.getElementById('guestsPage');
 if (addPanel && addPanel.classList.contains('show') && !addPanel.contains(e.target) && !addBtn.contains(e.target)) {
 addPanel.classList.remove('show');
 }
@@ -2355,6 +2701,19 @@ searchPanel.classList.remove('show');
 	if (auditDatePicker && !auditDatePicker.contains(e.target)) {
 		closeAuditDateRangePopover();
 	}
+if (
+expandedClientPhone &&
+guestsPage &&
+guestsPage.style.display !== 'none' &&
+!(e.target && e.target.closest('.client-list-item'))
+) {
+expandedClientPhone = '';
+selectedClientPhone = '';
+selectedClientName = '';
+selectedClientBookingUidFilter = '';
+selectedClientHistoryRows = [];
+renderGuests();
+}
 });
 document.addEventListener('keydown', (e) => {
 if (e.key === 'Escape') {
@@ -2389,6 +2748,12 @@ if (e.target.id === 'adminsModal') closeAdminsModal();
 document.getElementById('quickBookingModal').addEventListener('click', (e) => {
 if (e.target.id === 'quickBookingModal') closeQuickBooking();
 });
+const bookingLifecycleModalEl = document.getElementById('bookingLifecycleModal');
+if (bookingLifecycleModalEl) {
+bookingLifecycleModalEl.addEventListener('click', (e) => {
+if (e.target.id === 'bookingLifecycleModal') closeBookingLifecycleModal();
+});
+}
 const ROOT_LOGIN = config.root.login;
 const ROOT_NAME = config.root.name;
 if (currentAdmin) {
@@ -3755,6 +4120,26 @@ CREATE_BOOKING_PS: 'create', UPDATE_BOOKING_PS: 'update', DELETE_BOOKING_PS: 'de
 PS_SESSION_START: 'create', PS_SESSION_END: 'success', PS_ADD_TIME: 'update',
 CREATE_ADMIN: 'create', DELETE_ADMIN: 'delete', PASSWORD_CHANGE: 'warning'
 };
+
+function translateBookingStatus(status) {
+const normalizedStatus = normalizeClientBookingStatus(status);
+const translations = {
+'pending': 'Ожидает',
+'completed': 'Завершена',
+'cancelled': 'Отменена',
+'no-show': 'Не пришел'
+};
+return translations[normalizedStatus] || status || '—';
+}
+
+function normalizeClientBookingStatus(status) {
+const statusLower = String(status || '').toLowerCase().trim();
+if (!statusLower || statusLower === 'pending' || statusLower === 'booked') return 'pending';
+if (statusLower === 'arrived' || statusLower === 'late' || statusLower === 'completed' || statusLower === 'started') return 'completed';
+if (statusLower === 'cancelled' || statusLower === 'deleted') return 'cancelled';
+if (statusLower === 'no-show') return 'no-show';
+return statusLower;
+}
 const AUDIT_LOGS_LIMIT = 50;
 let auditLogsOffset = 0;
 let auditAccountsLoaded = false;
@@ -3786,34 +4171,34 @@ await loadAuditAccountsFilter();
 loadAuditLogs();
 }
 
+function activateClientsSection() {
+document.getElementById('dashboardSection').style.display = 'none';
+document.getElementById('bookingsSection').style.display = 'flex';
+document.getElementById('logsSection').style.display = 'none';
+document.getElementById('bookingHistorySection').style.display = 'none';
+document.getElementById('customerHistorySection').style.display = 'none';
+document.getElementById('ownerStatsSection').style.display = 'none';
+document.getElementById('adminsSection').style.display = 'none';
+document.getElementById('tasksSection').style.display = 'none';
+document.querySelectorAll('.nav-item').forEach(function(el) { el.classList.remove('active'); });
+const navClients = document.getElementById('navClients');
+if (navClients) navClients.classList.add('active');
+switchPlatform('pc');
+showGuestsPage();
+}
+
 async function showBookingHistoryPage(options) {
 if (!canViewHistoryAndStats()) {
 notify('❌ Недостаточно прав для просмотра истории броней', 'Ошибка');
 return;
 }
-const preserveFilters = !!(options && options.preserveFilters);
-document.getElementById('dashboardSection').style.display = 'none';
-document.getElementById('bookingsSection').style.display = 'none';
-document.getElementById('logsSection').style.display = 'none';
-document.getElementById('customerHistorySection').style.display = 'none';
-document.getElementById('ownerStatsSection').style.display = 'none';
-document.getElementById('adminsSection').style.display = 'none';
-document.getElementById('tasksSection').style.display = 'none';
-document.getElementById('bookingHistorySection').style.display = 'flex';
-document.querySelectorAll('.nav-item').forEach(function(el) { el.classList.remove('active'); });
-document.getElementById('bookingHistoryBtn').classList.add('active');
-if (!auditAccountsLoaded) {
-await loadAuditAccountsFilter();
-}
-if (!preserveFilters) {
-resetBookingHistory();
+activateClientsSection();
+const targetUid = String(options && options.bookingUid ? options.bookingUid : bookingHistoryCurrentUid).trim().toUpperCase();
+if (targetUid) {
+openBookingHistoryByUid(targetUid);
 return;
 }
-if (bookingHistoryCurrentUid) {
-const input = document.getElementById('bookingHistoryUidInput');
-if (input) input.value = bookingHistoryCurrentUid;
-}
-loadBookingHistory();
+notify('Откройте клиента и нажмите на ID брони для просмотра жизненного цикла.', 'Инфо');
 }
 
 function openBookingHistoryByUid(bookingUid) {
@@ -3822,9 +4207,7 @@ if (!uid) return;
 bookingHistoryCurrentUid = uid;
 const auditInput = document.getElementById('auditFilterBookingUid');
 if (auditInput) auditInput.value = uid;
-const historyInput = document.getElementById('bookingHistoryUidInput');
-if (historyInput) historyInput.value = uid;
-showBookingHistoryPage({ preserveFilters: true });
+openBookingLifecycleModal(uid);
 }
 
 async function showCustomerHistoryPage(options) {
@@ -3832,26 +4215,10 @@ if (!canViewHistoryAndStats()) {
 notify('❌ Недостаточно прав для просмотра истории клиентов', 'Ошибка');
 return;
 }
+activateClientsSection();
 const preserveFilters = !!(options && options.preserveFilters);
-document.getElementById('dashboardSection').style.display = 'none';
-document.getElementById('bookingsSection').style.display = 'none';
-document.getElementById('logsSection').style.display = 'none';
-document.getElementById('bookingHistorySection').style.display = 'none';
-document.getElementById('ownerStatsSection').style.display = 'none';
-document.getElementById('adminsSection').style.display = 'none';
-document.getElementById('tasksSection').style.display = 'none';
-document.getElementById('customerHistorySection').style.display = 'flex';
-document.querySelectorAll('.nav-item').forEach(function(el) { el.classList.remove('active'); });
-document.getElementById('customerHistoryBtn').classList.add('active');
-if (!preserveFilters) {
-resetCustomerHistory();
-return;
-}
-const phoneInput = document.getElementById('customerHistoryPhoneInput');
-const nameInput = document.getElementById('customerHistoryNameInput');
-if (phoneInput) phoneInput.value = customerHistoryCurrentPhone;
-if (nameInput) nameInput.value = customerHistoryCurrentName;
-loadCustomerHistory();
+if (!preserveFilters || !customerHistoryCurrentPhone) return;
+await openClientDetails(customerHistoryCurrentPhone, customerHistoryCurrentName);
 }
 
 function openCustomerHistoryByPhone(phone, name) {
@@ -3859,11 +4226,57 @@ const normalizedPhone = String(phone || '').trim();
 if (!normalizedPhone) return;
 customerHistoryCurrentPhone = normalizedPhone;
 customerHistoryCurrentName = String(name || '').trim();
-const phoneInput = document.getElementById('customerHistoryPhoneInput');
-const nameInput = document.getElementById('customerHistoryNameInput');
-if (phoneInput) phoneInput.value = normalizedPhone;
-if (nameInput) nameInput.value = customerHistoryCurrentName;
-showCustomerHistoryPage({ preserveFilters: true });
+activateClientsSection();
+openClientDetails(normalizedPhone, customerHistoryCurrentName);
+}
+
+async function openBookingLifecycleModal(bookingUid) {
+if (!canViewHistoryAndStats()) return;
+const uid = String(bookingUid || '').trim().toUpperCase();
+if (!uid) return;
+
+const modal = document.getElementById('bookingLifecycleModal');
+const title = document.getElementById('bookingLifecycleTitle');
+const tbody = document.getElementById('bookingLifecycleTableBody');
+const emptyState = document.getElementById('bookingLifecycleEmptyState');
+if (!modal || !title || !tbody || !emptyState) return;
+
+title.textContent = `Жизненный цикл брони ${uid}`;
+tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:24px;opacity:0.5;">Загрузка...</td></tr>';
+emptyState.style.display = 'none';
+modal.style.display = 'flex';
+
+try {
+const data = await apiRequest('/audit/booking-history/' + encodeURIComponent(uid));
+const logs = Array.isArray(data?.logs) ? data.logs : [];
+tbody.innerHTML = '';
+if (logs.length === 0) {
+emptyState.style.display = 'block';
+return;
+}
+
+logs.forEach(function(log) {
+const tr = document.createElement('tr');
+const category = ACTION_CATEGORY[log.action] || 'neutral';
+const label = ACTION_LABELS[log.action] || log.action;
+const details = formatAuditDetails(log.action, log.before, log.after, uid);
+const date = new Date(log.timestamp);
+const dateStr = date.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+tr.innerHTML =
+'<td class="audit-cell-time">' + escapeHtml(dateStr) + '</td>' +
+'<td class="audit-cell-who">' + escapeHtml(log.admin_name || log.admin_login || '—') + '</td>' +
+'<td><span class="audit-badge audit-badge--' + category + '">' + escapeHtml(label) + '</span></td>' +
+'<td class="audit-cell-details">' + escapeHtml(details) + '</td>';
+tbody.appendChild(tr);
+});
+} catch (err) {
+tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;color:#f87171;">' + escapeHtml(err?.message || 'Ошибка загрузки истории') + '</td></tr>';
+}
+}
+
+function closeBookingLifecycleModal() {
+const modal = document.getElementById('bookingLifecycleModal');
+if (modal) modal.style.display = 'none';
 }
 
 async function loadAuditAccountsFilter() {
@@ -4025,7 +4438,9 @@ if (dateLabel) parts.push(dateLabel);
 if (time) parts.push(time);
 if (hasPrepay(prepay)) parts.push('Предоплата: ' + prepay + ' ₸');
 if (action.startsWith('MARK_') && before && after && before.status && after.status) {
-parts.push(before.status + ' → ' + after.status);
+const beforeStatus = translateBookingStatus(before.status);
+const afterStatus = translateBookingStatus(after.status);
+parts.push(beforeStatus + ' → ' + afterStatus);
 }
 return parts.join(' · ') || '—';
 }
@@ -4262,13 +4677,10 @@ return timeB - timeA;
 bookings.forEach(function(item) {
 const tr = document.createElement('tr');
 const dateText = item.date_value || '—';
-const statusText = item.deleted_at ? 'Удалена' : (item.status || '—');
+const statusText = translateBookingStatus(item.deleted_at ? 'deleted' : (item.status || ''));
 const accountText = item.admin_name || item.admin_login || item.created_by_name || item.created_by_login || '—';
 const bookingUid = String(item.booking_uid || '').trim().toUpperCase();
-const createdAt = item.created_at || '';
-const createdDate = createdAt ? createdAt.split('T')[0] : '—';
-const createdTime = createdAt ? (createdAt.split('T')[1] ? createdAt.split('T')[1].substring(0, 5) : '—') : '—';
-const createdDisplay = createdDate !== '—' && createdTime !== '—' ? createdDate + ' ' + createdTime : (createdDate !== '—' ? createdDate : '—');
+const createdDisplay = formatBookingCreatedAtDisplay(item);
 const uidHtml = bookingUid
 ? '<button type="button" class="audit-booking-link" onclick="openBookingHistoryByUid(\'' + bookingUid + '\')">' + escapeHtml(bookingUid) + '</button>'
 : '—';

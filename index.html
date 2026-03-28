@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Панель клуба | Киберклуб</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/club/combo2.css">
+<link rel="stylesheet" href="/club/combo2.css?v=20260328g">
 </head>
 <body>
 
@@ -217,10 +217,13 @@
               onclick="showTasksPage();">
         <span class="nav-icon">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="1.5" y="1.5" width="11" height="11" rx="1.8" stroke="currentColor" stroke-width="1.2"/>
-            <line x1="4.5" y1="5" x2="9.8" y2="5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
-            <line x1="4.5" y1="7" x2="9.8" y2="7" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
-            <line x1="4.5" y1="9" x2="8" y2="9" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+            <circle cx="7" cy="7" r="5.2" stroke="currentColor" stroke-width="1.2" fill="none"/>
+            <circle cx="7" cy="7" r="2.5" stroke="currentColor" stroke-width="1.1" fill="none"/>
+            <circle cx="7" cy="7" r="0.9" fill="currentColor"/>
+            <line x1="7" y1="1" x2="7" y2="2.2" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+            <line x1="7" y1="11.8" x2="7" y2="13" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+            <line x1="1" y1="7" x2="2.2" y2="7" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+            <line x1="11.8" y1="7" x2="13" y2="7" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
           </svg>
         </span>
         <span class="nav-label">Задачи</span>
@@ -453,15 +456,18 @@
         </div>
 
         <div id="guestsPage" style="display:none;" data-platform="pc">
-          <div class="dashboard-heading" style="margin-bottom:12px;">
-            <h2>Карточки клиентов</h2>
-            <span class="dashboard-sub">Рейтинг и карточки клиентов клуба</span>
+          <div class="clients-page-shell">
+            <div class="dashboard-heading" style="margin:-42px 0 4px;">
+              <h2>Карточки клиентов</h2>
+            </div>
+            <div class="clients-toolbar">
+              <label for="guestSearchInput" class="client-search-label">Поиск по имени/номеру телефона</label>
+              <input type="text" id="guestSearchInput" style="flex:1;max-width:420px;">
+            </div>
+            <div class="clients-unified-layout">
+              <div class="guests-container" id="guestsContainer"></div>
+            </div>
           </div>
-          <div style="display:flex;justify-content:space-between;margin-bottom:16px;align-items:center;gap:12px;">
-            <input type="text" id="guestSearchInput" style="flex:1;max-width:360px;">
-            <button type="button" onclick="hideGuestsPage()">← Назад</button>
-          </div>
-          <div class="guests-container" id="guestsContainer"></div>
         </div>
 
         <div id="psConsolesPage" style="display:none;" data-platform="ps">
@@ -854,6 +860,29 @@
   </div>
 </div>
 
+<div id="bookingLifecycleModal" class="modal">
+  <div class="modal-content booking-lifecycle-modal-content">
+    <h3 id="bookingLifecycleTitle">Жизненный цикл брони</h3>
+    <div class="owner-prepay-modal-table-wrap">
+      <table class="audit-table">
+        <thead>
+          <tr>
+            <th>Дата и время</th>
+            <th>Аккаунт</th>
+            <th>Действие</th>
+            <th>Подробности</th>
+          </tr>
+        </thead>
+        <tbody id="bookingLifecycleTableBody"></tbody>
+      </table>
+    </div>
+    <div id="bookingLifecycleEmptyState" class="audit-empty" style="display:none;">История не найдена</div>
+    <div class="modal-buttons" style="flex-direction:row;">
+      <button type="button" onclick="closeBookingLifecycleModal()">Закрыть</button>
+    </div>
+  </div>
+</div>
+
 <div id="quickBookingModal" class="modal">
   <div class="modal-content">
     <h3>Бронь для текущего клиента</h3>
@@ -1142,7 +1171,7 @@
 <script src="/club/pc-bookings.js"></script>
 <script src="/club/ps.js"></script>
 <script src="/club/ui.js"></script>
-<script src="/club/combo2.js"></script>
+<script src="/club/combo2.js?v=20260328g"></script>
 
 </body>
 </html>

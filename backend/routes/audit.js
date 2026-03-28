@@ -152,6 +152,7 @@ function normalizeBookingUid(value) {
 function normalizePhone(value) {
   const digits = String(value || '').replace(/\D/g, '');
   if (!digits) return '';
+  if (digits.length === 10) return `7${digits}`;
   if (digits.startsWith('8') && digits.length === 11) return `7${digits.slice(1)}`;
   return digits;
 }
@@ -342,15 +343,15 @@ router.get('/customer-history/:phone', async (req, res, next) => {
 
     const scopeParams = [];
     let pcQuery = `SELECT b.booking_uid, b.name, b.phone, b.date_value, b.time, b.status,
-                          b.created_at, b.updated_at, b.deleted_at,
-                          a.name AS admin_name, a.login AS admin_login
-                   FROM bookings_pc b
+                               b.pc, b.created_at, b.updated_at, b.deleted_at,
+                               a.name AS admin_name, a.login AS admin_login
+                             FROM bookings_pc b
                    LEFT JOIN admins a ON a.id = b.admin_id
                    WHERE 1=1`;
     let psQuery = `SELECT b.booking_uid, b.name, b.phone, b.date_value, b.time, b.status,
-                          b.created_at, b.updated_at, b.deleted_at,
-                          a.name AS admin_name, a.login AS admin_login
-                   FROM bookings_ps b
+                               b.ps_id, b.created_at, b.updated_at, b.deleted_at,
+                               a.name AS admin_name, a.login AS admin_login
+                             FROM bookings_ps b
                    LEFT JOIN admins a ON a.id = b.admin_id
                    WHERE 1=1`;
 
@@ -376,6 +377,7 @@ router.get('/customer-history/:phone', async (req, res, next) => {
         booking_uid: row.booking_uid || null,
         platform: 'pc',
         platform_label: 'ПК',
+          pc: row.pc || null,
         name: row.name || '',
         phone: row.phone || '',
         date_value: row.date_value || '',
@@ -395,6 +397,7 @@ router.get('/customer-history/:phone', async (req, res, next) => {
         booking_uid: row.booking_uid || null,
         platform: 'ps',
         platform_label: 'PS',
+        ps_id: row.ps_id || null,
         name: row.name || '',
         phone: row.phone || '',
         date_value: row.date_value || '',
