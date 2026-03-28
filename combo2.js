@@ -1532,7 +1532,9 @@ populateDates();
 scheduleDateRefreshAtMidnight();
 const phoneInput = document.getElementById('phone');
 function cleanPhone(str) {
-let digits = str.replace(/\D/g, '');
+const source = String(str || '');
+let digits = source.replace(/\D/g, '');
+if (source.trim().startsWith('+7')) digits = digits.slice(1);
 if (digits.length === 11 && (digits.startsWith('7') || digits.startsWith('8'))) digits = digits.slice(1);
 return digits.slice(0, 10);
 }
