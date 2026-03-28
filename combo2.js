@@ -2950,15 +2950,37 @@ return '<svg width="16" height="16" viewBox="0 0 14 14" fill="none" xmlns="http:
 }
 }
 
-function renderOwnerStatsCards(cards) {
-const content = document.getElementById('ownerStatsPageContent');
-if (!content) return;
-content.innerHTML = '';
-cards.forEach((item) => {
+function createOwnerStatsCardElement(item) {
 const card = document.createElement('div');
 card.className = 'owner-stat-card stat-card';
 card.innerHTML = `<div class="stat-card-icon">${getOwnerStatsIconSvg(item.label)}</div><div class="stat-card-value">${item.value}</div><div class="stat-card-label">${item.label}</div>`;
-content.appendChild(card);
+return card;
+}
+
+function renderOwnerStatsCards(cards) {
+const content = document.getElementById('ownerStatsPageContent');
+if (!content) return;
+
+const existingCards = Array.from(content.querySelectorAll('.owner-stat-card'));
+const canPatchInPlace = existingCards.length === cards.length && existingCards.length > 0;
+
+if (canPatchInPlace) {
+cards.forEach((item, index) => {
+const card = existingCards[index];
+const iconEl = card.querySelector('.stat-card-icon');
+const valueEl = card.querySelector('.stat-card-value');
+const labelEl = card.querySelector('.stat-card-label');
+
+if (iconEl) iconEl.innerHTML = getOwnerStatsIconSvg(item.label);
+if (valueEl) valueEl.textContent = String(item.value);
+if (labelEl) labelEl.textContent = item.label;
+});
+return;
+}
+
+content.innerHTML = '';
+cards.forEach((item) => {
+content.appendChild(createOwnerStatsCardElement(item));
 });
 }
 
@@ -3492,7 +3514,7 @@ contentEl.style.maxHeight = contentEl.scrollHeight + 'px';
 
 async function refreshOwnerStatsPageContent() {
 const content = document.getElementById('ownerStatsPageContent');
-if (content) {
+if (content && !content.querySelector('.owner-stat-card')) {
 content.innerHTML = '<div class="owner-stat-card stat-card"><div class="stat-card-icon"></div><div class="stat-card-value">...</div><div class="stat-card-label">Загрузка статистики</div></div>';
 }
 try {
