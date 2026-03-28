@@ -586,8 +586,8 @@ status: row.status,
 pcStatuses: row.pc_statuses || {},
 arrived: row.status === 'arrived',
 addedBy: row.admin_name || row.admin_login || null,
-addedAt: row.created_at
-};
+    addedAt: row.created_at,
+    updatedAt: row.updated_at || null
 }
 
 function toApiBooking(booking) {
@@ -1651,6 +1651,7 @@ guestRating.total += pcsCount;
 guestRating.arrived += pcsCount;
 }
 booking.status = 'arrived';
+booking.updatedAt = new Date().toISOString();
 done.push(booking);
 bookings.splice(index, 1);
 }
@@ -1909,7 +1910,13 @@ const searchPhone = document.getElementById('doneSearchPhone')?.value.trim().rep
 const searchPC = document.getElementById('doneSearchPC')?.value.trim() || '';
 const selectedDate = document.getElementById('doneSearchDate')?.value || '';
 done = done.filter(b => (now - new Date(b.dateValue + 'T' + b.time)) < config.doneRetentionHours * 60 * 60 * 1000);
-done.sort((a, b) => new Date(b.dateValue + 'T' + b.time) - new Date(a.dateValue + 'T' + a.time));
+done.sort((a, b) => {
+  const ta = a.updatedAt || a.addedAt || '';
+  const tb = b.updatedAt || b.addedAt || '';
+  if (tb > ta) return 1;
+  if (tb < ta) return -1;
+  return (Number(b.id) || 0) - (Number(a.id) || 0);
+});
 done.forEach(b => {
 let matches = true;
 if (searchName) matches = matches && b.name.toLowerCase().includes(searchName);
@@ -2088,6 +2095,7 @@ guestRating.total++;
 guestRating.arrived++;
 }
 b.status = 'arrived';
+b.updatedAt = new Date().toISOString();
 done.push(b);
 bookings.splice(currentBookingIndex, 1);
 saveAll();
@@ -2116,6 +2124,7 @@ guestRating.late++;
 guestRating.rating = Math.max(0, guestRating.rating - config.rating.latePenalty);
 }
 b.status = 'late';
+b.updatedAt = new Date().toISOString();
 done.push(b);
 bookings.splice(currentBookingIndex, 1);
 saveAll();
@@ -2144,6 +2153,7 @@ guestRating.cancelled++;
 guestRating.rating = Math.max(0, guestRating.rating - config.rating.cancelledPenalty);
 }
 b.status = 'cancelled';
+b.updatedAt = new Date().toISOString();
 done.push(b);
 bookings.splice(currentBookingIndex, 1);
 saveAll();
@@ -2172,6 +2182,7 @@ guestRating.noShow++;
 guestRating.rating = Math.max(0, guestRating.rating - config.rating.noShowPenalty);
 }
 b.status = 'no-show';
+b.updatedAt = new Date().toISOString();
 done.push(b);
 bookings.splice(currentBookingIndex, 1);
 saveAll();

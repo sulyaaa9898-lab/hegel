@@ -418,13 +418,25 @@
 
         <div id="donePage" style="display:none;" data-platform="pc">
           <div style="display:flex;justify-content:space-between;margin-bottom:14px;align-items:center;gap:10px;flex-wrap:wrap;">
-            <div style="display:flex;gap:8px;flex-wrap:wrap;flex:1;min-width:240px;">
-              <input type="text" id="doneSearchName" style="flex:1;min-width:90px;">
-              <input type="text" id="doneSearchPhone" style="flex:1;min-width:90px;">
-              <input type="text" id="doneSearchPC" style="flex:1;min-width:70px;">
-              <select id="doneSearchDate" style="flex:1;min-width:90px;">
-                <option value="">Все даты</option>
-              </select>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;flex:1;min-width:240px;align-items:flex-end;">
+              <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:90px;">
+                <label for="doneSearchName" style="font-size:11px;color:#aaa;user-select:none;">Имя</label>
+                <input type="text" id="doneSearchName">
+              </div>
+              <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:90px;">
+                <label for="doneSearchPhone" style="font-size:11px;color:#aaa;user-select:none;">Телефон</label>
+                <input type="text" id="doneSearchPhone">
+              </div>
+              <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:70px;">
+                <label for="doneSearchPC" style="font-size:11px;color:#aaa;user-select:none;">ПК</label>
+                <input type="text" id="doneSearchPC">
+              </div>
+              <div style="display:flex;flex-direction:column;gap:3px;flex:1;min-width:90px;">
+                <label for="doneSearchDate" style="font-size:11px;color:#aaa;user-select:none;">Дата</label>
+                <select id="doneSearchDate">
+                  <option value="">Все даты</option>
+                </select>
+              </div>
             </div>
             <button type="button" onclick="hideDonePage()">← Назад</button>
           </div>
