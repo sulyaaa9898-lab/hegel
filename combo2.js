@@ -588,6 +588,7 @@ arrived: row.status === 'arrived',
 addedBy: row.admin_name || row.admin_login || null,
     addedAt: row.created_at,
     updatedAt: row.updated_at || null
+};
 }
 
 function toApiBooking(booking) {
