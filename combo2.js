@@ -2599,6 +2599,7 @@ if (getAuthToken()) await apiRequest('/auth/logout', { method: 'POST' });
 } catch (error) {
 reportClientError('Не удалось завершить сессию на сервере', error, { silent: true });
 }
+stopBookingNotificationMonitoring();
 clearAuthToken();
 currentAdmin = null;
 storage.saveCurrentAdmin(state);
@@ -2622,6 +2623,7 @@ document.getElementById('donePage').style.display = 'none';
 document.getElementById('guestsPage').style.display = 'none';
 renderSubscriptionState();
 setupAuthModeByContext();
+redirectToLoginScreen();
 }
 async function showAdmins() {
 if (!canManageClub()) {
@@ -5302,4 +5304,10 @@ loadDashboardTasksWidget();
 }
 }
 })();
+
+function redirectToLoginScreen() {
+const currentUrl = new URL(window.location.href);
+currentUrl.hash = '';
+window.location.replace(`${currentUrl.pathname}${currentUrl.search}`);
+}
 
