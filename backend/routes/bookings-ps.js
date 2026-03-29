@@ -232,11 +232,11 @@ router.put('/:id', async (req, res, next) => {
       db,
       `UPDATE bookings_ps
        SET ps_id = ?, name = ?, phone = ?, time = ?, date_value = ?, date_display = ?, status = ?, updated_at = ?
-       WHERE id = ?`,
-      [nextPsId, nextName, nextPhone || null, nextTime, nextDateValue, nextDateDisplay || null, nextStatus, nowIso(), id]
+       WHERE id = ? AND club_id = ?`,
+      [nextPsId, nextName, nextPhone || null, nextTime, nextDateValue, nextDateDisplay || null, nextStatus, nowIso(), id, req.club.id]
     );
 
-    const updated = await dbGet(db, 'SELECT * FROM bookings_ps WHERE id = ?', [id]);
+    const updated = await dbGet(db, 'SELECT * FROM bookings_ps WHERE id = ? AND club_id = ?', [id, req.club.id]);
 
     await writeAudit(db, {
       clubId: req.club.id,
@@ -270,7 +270,11 @@ router.delete('/:id', async (req, res, next) => {
     const deletedAt = nowIso();
     const beforeState = mapBooking(existing);
 
-    await dbRun(db, 'UPDATE bookings_ps SET deleted_at = ?, updated_at = ? WHERE id = ?', [deletedAt, deletedAt, id]);
+    await dbRun(
+      db,
+      'UPDATE bookings_ps SET deleted_at = ?, updated_at = ? WHERE id = ? AND club_id = ?',
+      [deletedAt, deletedAt, id, req.club.id]
+    );
 
     await writeAudit(db, {
       clubId: req.club.id,

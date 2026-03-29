@@ -213,7 +213,7 @@ router.post('/:id/session', async (req, res, next) => {
       ]
     );
 
-    const created = await dbGet(db, 'SELECT * FROM ps_sessions WHERE id = ?', [inserted.id]);
+    const created = await dbGet(db, 'SELECT * FROM ps_sessions WHERE id = ? AND club_id = ?', [inserted.id, req.club.id]);
 
     await writeAudit(db, {
       clubId: req.club.id,
@@ -257,16 +257,17 @@ router.put('/:id/session', async (req, res, next) => {
       db,
       `UPDATE ps_sessions
        SET prepaid_minutes = ?, total_paid = ?, added_time = ?
-       WHERE id = ?`,
+       WHERE id = ? AND club_id = ?`,
       [
         Number(running.prepaid_minutes || 0) + addMinutes,
         Number(running.total_paid || 0) + addCost,
         Number(running.added_time || 0) + addMinutes,
-        running.id
+        running.id,
+        req.club.id
       ]
     );
 
-    const updated = await dbGet(db, 'SELECT * FROM ps_sessions WHERE id = ?', [running.id]);
+    const updated = await dbGet(db, 'SELECT * FROM ps_sessions WHERE id = ? AND club_id = ?', [running.id, req.club.id]);
 
     await writeAudit(db, {
       clubId: req.club.id,
@@ -309,8 +310,8 @@ router.post('/:id/session/end', async (req, res, next) => {
 
     await dbRun(
       db,
-      'UPDATE ps_sessions SET total_paid = ?, ended_at = ? WHERE id = ?',
-      [finalTotalPaid, endedAt, running.id]
+      'UPDATE ps_sessions SET total_paid = ?, ended_at = ? WHERE id = ? AND club_id = ?',
+      [finalTotalPaid, endedAt, running.id, req.club.id]
     );
 
     if (running.booking_id) {
@@ -321,7 +322,7 @@ router.post('/:id/session/end', async (req, res, next) => {
       );
     }
 
-    const ended = await dbGet(db, 'SELECT * FROM ps_sessions WHERE id = ?', [running.id]);
+    const ended = await dbGet(db, 'SELECT * FROM ps_sessions WHERE id = ? AND club_id = ?', [running.id, req.club.id]);
 
     await writeAudit(db, {
       clubId: req.club.id,
