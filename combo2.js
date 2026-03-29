@@ -429,17 +429,21 @@ if (tasksBtn) tasksBtn.style.display = canViewStatsAndHistory ? 'flex' : 'none';
 function expandSidebar() {
 const sidebar = document.querySelector('.sidebar');
 const appLayout = document.getElementById('userPanel');
+const backdrop = document.getElementById('sidebarBackdrop');
 if (!sidebar) return;
 sidebar.classList.add('sidebar-expanded');
-if (appLayout) appLayout.classList.add('sidebar-pushed');
+if (appLayout) appLayout.classList.add('sidebar-overlay-open');
+if (backdrop) backdrop.classList.add('active');
 }
 
 function collapseSidebar() {
 const sidebar = document.querySelector('.sidebar');
 const appLayout = document.getElementById('userPanel');
+const backdrop = document.getElementById('sidebarBackdrop');
 if (!sidebar) return;
 sidebar.classList.remove('sidebar-expanded');
-if (appLayout) appLayout.classList.remove('sidebar-pushed');
+if (appLayout) appLayout.classList.remove('sidebar-overlay-open');
+if (backdrop) backdrop.classList.remove('active');
 }
 
 function syncSidebarDrawerForViewport() {
@@ -448,6 +452,7 @@ collapseSidebar();
 
 function setupSidebarDrawer() {
 const sidebar = document.querySelector('.sidebar');
+const backdrop = document.getElementById('sidebarBackdrop');
 
 if (sidebar) {
 sidebar.addEventListener('click', function() {
@@ -457,8 +462,20 @@ expandSidebar();
 });
 }
 
+if (backdrop) {
+backdrop.addEventListener('click', function() {
+collapseSidebar();
+});
+}
+
 document.addEventListener('click', function(e) {
 if (sidebar && sidebar.classList.contains('sidebar-expanded') && !sidebar.contains(e.target)) {
+collapseSidebar();
+}
+});
+
+document.addEventListener('keydown', function(e) {
+if (e.key === 'Escape' && sidebar && sidebar.classList.contains('sidebar-expanded')) {
 collapseSidebar();
 }
 });
