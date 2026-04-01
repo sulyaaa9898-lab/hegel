@@ -1935,15 +1935,16 @@ const searchName = document.getElementById('doneSearchName')?.value.trim().toLow
 const searchPhone = document.getElementById('doneSearchPhone')?.value.trim().replace(/\D/g, '') || '';
 const searchPC = document.getElementById('doneSearchPC')?.value.trim() || '';
 const selectedDate = document.getElementById('doneSearchDate')?.value || '';
-done = done.filter(b => (now - new Date(b.dateValue + 'T' + b.time)) < config.doneRetentionHours * 60 * 60 * 1000);
-done.sort((a, b) => {
+const doneForTable = done
+.filter(b => (now - new Date(b.dateValue + 'T' + b.time)) < config.doneRetentionHours * 60 * 60 * 1000)
+.sort((a, b) => {
   const ta = a.updatedAt || a.addedAt || '';
   const tb = b.updatedAt || b.addedAt || '';
   if (tb > ta) return 1;
   if (tb < ta) return -1;
   return (Number(b.id) || 0) - (Number(a.id) || 0);
 });
-done.forEach(b => {
+doneForTable.forEach(b => {
 let matches = true;
 if (searchName) matches = matches && b.name.toLowerCase().includes(searchName);
 if (selectedDate) matches = matches && b.dateValue === selectedDate;
