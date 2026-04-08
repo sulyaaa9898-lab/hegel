@@ -1891,6 +1891,7 @@ menu.classList.add('dropdown-menu-top');
 menu.classList.remove('dropdown-menu-top');
 }
 });
+actionsTd.appendChild(dropdown);
 if (overdue && b.phone) {
 const remindBtn = document.createElement('button');
 remindBtn.type = 'button';
@@ -1899,7 +1900,6 @@ remindBtn.textContent = 'Напомнить';
 remindBtn.addEventListener('click', () => sendWhatsAppReminder(b));
 actionsTd.appendChild(remindBtn);
 }
-actionsTd.appendChild(dropdown);
 tr.appendChild(nameTd);
 tr.appendChild(pcTd);
 tr.appendChild(timeTd);
