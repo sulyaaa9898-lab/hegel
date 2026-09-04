@@ -654,12 +654,17 @@ clubContext.subscription = resolveSubscriptionState(clubConfig.club.subscription
 }
 applyPsRuntimeConfig(clubConfig);
 
-bookings = Array.isArray(active) ? active.map(fromApiBooking) : [];
-done = Array.isArray(finished) ? finished.map(fromApiBooking) : [];
+if (activeRes.status === 'fulfilled' && Array.isArray(active)) {
+bookings = active.map(fromApiBooking);
+}
+if (finishedRes.status === 'fulfilled' && Array.isArray(finished)) {
+done = finished.map(fromApiBooking);
+}
 
-guestRatings = {};
-(Array.isArray(ratings) ? ratings : []).forEach((item) => {
-guestRatings[item.phone] = {
+if (ratingsRes.status === 'fulfilled' && Array.isArray(ratings)) {
+const nextGuestRatings = {};
+ratings.forEach((item) => {
+nextGuestRatings[item.phone] = {
 phone: item.phone,
 rating: item.rating,
 total: item.total_bookings,
@@ -669,8 +674,11 @@ cancelled: item.cancelled,
 noShow: item.no_show
 };
 });
+guestRatings = nextGuestRatings;
+}
 
-admins = (Array.isArray(adminList) ? adminList : []).map((a) => ({
+if (adminRes.status === 'fulfilled' && Array.isArray(adminList)) {
+admins = adminList.map((a) => ({
 id: a.id,
 login: a.login,
 name: a.name,
@@ -679,8 +687,10 @@ isClubOwner: !!a.is_club_owner,
 role: a.is_club_owner ? CLUB_OWNER_ROLE : CLUB_ADMIN_ROLE,
 created: a.created_at
 }));
+}
 
-psConsoles = (Array.isArray(psConsolesApi) ? psConsolesApi : []).map((item) => {
+if (psConsolesRes.status === 'fulfilled' && Array.isArray(psConsolesApi)) {
+psConsoles = psConsolesApi.map((item) => {
 const session = item.session || null;
 const booking = item.booking || null;
 return {
@@ -706,6 +716,7 @@ bookedAt: booking.created_at
 isFreeTime: session ? !!session.is_free_time : false
 };
 });
+}
 
 storage.saveBookingsState(state);
 storage.saveAdmins(state);
@@ -1659,6 +1670,7 @@ statuses[pc] = 'pending';
 return statuses;
 }
 let currentPCStatusTarget = null;
+let currentBookingSelection = null;
 function getPCStatusTitle(status) {
 if (status === 'arrived') return 'пришёл';
 return 'ожидается';
@@ -1688,7 +1700,7 @@ currentPCStatusTarget = null;
 function openPCStatusModal(index, pc) {
 const booking = bookings[index];
 if (!booking) return;
-currentPCStatusTarget = { index, pc };
+currentPCStatusTarget = { selection: buildBookingSelection(booking), fallbackIndex: index, pc };
 const statuses = ensureBookingPCStatuses(booking);
 const statusText = getPCStatusTitle(statuses[pc] || 'pending');
 document.getElementById('pcStatusBookingInfo').textContent = `${booking.name} · ПК ${pc} (${statusText})`;
@@ -1696,10 +1708,12 @@ document.getElementById('pcStatusModal').style.display = 'flex';
 }
 async function confirmPCArrived() {
 if (!currentPCStatusTarget) return;
-const { index, pc } = currentPCStatusTarget;
-const booking = bookings[index];
+const { selection, fallbackIndex, pc } = currentPCStatusTarget;
+const index = resolveBookingIndexBySelection(selection, fallbackIndex);
+const booking = index >= 0 ? bookings[index] : null;
 if (!booking) {
 closePCStatusModal();
+notify('Бронь не найдена или уже обновлена. Обновите список.', 'Внимание');
 return;
 }
 const snapshotBookings = JSON.parse(JSON.stringify(bookings));
@@ -1745,6 +1759,49 @@ pendingForce = null;
 function closeModal() {
 document.getElementById('modal').style.display = 'none';
 currentBookingIndex = null;
+currentBookingSelection = null;
+}
+
+function buildBookingSelection(booking) {
+if (!booking || typeof booking !== 'object') return null;
+return {
+id: Number(booking.id) || null,
+name: String(booking.name || ''),
+pc: String(booking.pc || ''),
+time: String(booking.time || ''),
+dateValue: String(booking.dateValue || ''),
+addedAt: String(booking.addedAt || '')
+};
+}
+
+function resolveBookingIndexBySelection(selection, fallbackIndex = null) {
+if (selection) {
+if (selection.id) {
+const byIdIndex = bookings.findIndex((item) => Number(item && item.id) === selection.id);
+if (byIdIndex >= 0) return byIdIndex;
+}
+
+const byKeyIndex = bookings.findIndex((item) => {
+if (!item) return false;
+return String(item.name || '') === selection.name
+&& String(item.pc || '') === selection.pc
+&& String(item.time || '') === selection.time
+&& String(item.dateValue || '') === selection.dateValue
+&& String(item.addedAt || '') === selection.addedAt;
+});
+
+if (byKeyIndex >= 0) return byKeyIndex;
+}
+
+if (fallbackIndex !== null && fallbackIndex >= 0 && fallbackIndex < bookings.length) {
+return fallbackIndex;
+}
+
+return -1;
+}
+
+function resolveCurrentBookingIndex() {
+return resolveBookingIndexBySelection(currentBookingSelection, currentBookingIndex);
 }
 function renderTable() {
 const tbody = document.getElementById('bookingTable');
@@ -2445,13 +2502,20 @@ updateSelectedGuestCardState();
 function openActionModal(index) {
 currentBookingIndex = index;
 const booking = bookings[index];
+if (!booking) return;
+currentBookingSelection = buildBookingSelection(booking);
 const infoElement = document.getElementById('modalBookingInfo');
 infoElement.textContent = `${booking.name} - ${booking.time} (${booking.pc})`;
 document.getElementById('modal').style.display = 'flex';
 }
 async function markArrived() {
-if (currentBookingIndex === null) return;
-const b = bookings[currentBookingIndex];
+const bookingIndex = resolveCurrentBookingIndex();
+if (bookingIndex < 0) {
+closeModal();
+notify('Бронь не найдена или уже обновлена. Обновите список.', 'Внимание');
+return;
+}
+const b = bookings[bookingIndex];
 const snapshotBookings = JSON.parse(JSON.stringify(bookings));
 const snapshotDone = JSON.parse(JSON.stringify(done));
 const snapshotRatings = JSON.parse(JSON.stringify(guestRatings));
@@ -2463,7 +2527,7 @@ guestRating.arrived++;
 b.status = 'arrived';
 b.updatedAt = new Date().toISOString();
 done.push(b);
-bookings.splice(currentBookingIndex, 1);
+bookings.splice(bookingIndex, 1);
 saveAll();
 closeModal();
 removeNotificationsByBookingId(b.id);
@@ -2478,8 +2542,13 @@ notify('Ошибка синхронизации с сервером. Измен�
 }
 }
 async function markLate() {
-if (currentBookingIndex === null) return;
-const b = bookings[currentBookingIndex];
+const bookingIndex = resolveCurrentBookingIndex();
+if (bookingIndex < 0) {
+closeModal();
+notify('Бронь не найдена или уже обновлена. Обновите список.', 'Внимание');
+return;
+}
+const b = bookings[bookingIndex];
 const snapshotBookings = JSON.parse(JSON.stringify(bookings));
 const snapshotDone = JSON.parse(JSON.stringify(done));
 const snapshotRatings = JSON.parse(JSON.stringify(guestRatings));
@@ -2492,7 +2561,7 @@ guestRating.rating = Math.max(0, guestRating.rating - config.rating.latePenalty)
 b.status = 'late';
 b.updatedAt = new Date().toISOString();
 done.push(b);
-bookings.splice(currentBookingIndex, 1);
+bookings.splice(bookingIndex, 1);
 saveAll();
 closeModal();
 removeNotificationsByBookingId(b.id);
@@ -2507,8 +2576,13 @@ notify('Ошибка синхронизации с сервером. Измен�
 }
 }
 async function markCancelled() {
-if (currentBookingIndex === null) return;
-const b = bookings[currentBookingIndex];
+const bookingIndex = resolveCurrentBookingIndex();
+if (bookingIndex < 0) {
+closeModal();
+notify('Бронь не найдена или уже обновлена. Обновите список.', 'Внимание');
+return;
+}
+const b = bookings[bookingIndex];
 const snapshotBookings = JSON.parse(JSON.stringify(bookings));
 const snapshotDone = JSON.parse(JSON.stringify(done));
 const snapshotRatings = JSON.parse(JSON.stringify(guestRatings));
@@ -2521,7 +2595,7 @@ guestRating.rating = Math.max(0, guestRating.rating - config.rating.cancelledPen
 b.status = 'cancelled';
 b.updatedAt = new Date().toISOString();
 done.push(b);
-bookings.splice(currentBookingIndex, 1);
+bookings.splice(bookingIndex, 1);
 saveAll();
 closeModal();
 removeNotificationsByBookingId(b.id);
@@ -2536,8 +2610,13 @@ notify('Ошибка синхронизации с сервером. Измен�
 }
 }
 async function markNoShow() {
-if (currentBookingIndex === null) return;
-const b = bookings[currentBookingIndex];
+const bookingIndex = resolveCurrentBookingIndex();
+if (bookingIndex < 0) {
+closeModal();
+notify('Бронь не найдена или уже обновлена. Обновите список.', 'Внимание');
+return;
+}
+const b = bookings[bookingIndex];
 const snapshotBookings = JSON.parse(JSON.stringify(bookings));
 const snapshotDone = JSON.parse(JSON.stringify(done));
 const snapshotRatings = JSON.parse(JSON.stringify(guestRatings));
@@ -2550,7 +2629,7 @@ guestRating.rating = Math.max(0, guestRating.rating - config.rating.noShowPenalt
 b.status = 'no-show';
 b.updatedAt = new Date().toISOString();
 done.push(b);
-bookings.splice(currentBookingIndex, 1);
+bookings.splice(bookingIndex, 1);
 saveAll();
 closeModal();
 removeNotificationsByBookingId(b.id);
@@ -2581,19 +2660,21 @@ document.getElementById('forceAddBtn').addEventListener('click', () => {
 if (pendingForce && currentAdmin) {
 pendingForce.addedBy = currentAdmin.name;
 pendingForce.addedAt = new Date().toISOString();
-const createdBooking = Object.assign({}, pendingForce);
-bookings.push(pendingForce);
-const {name, pc, time, dateDisplay, phone, prepay} = pendingForce;
+const localBooking = pendingForce;
+const createdBooking = Object.assign({}, localBooking);
+bookings.push(localBooking);
+const {name, pc, time, dateDisplay, phone, prepay} = localBooking;
 pendingForce = null;
 saveAll();
 syncCreateBooking(createdBooking, true)
 .then(() => {
-const localMatch = bookings.find((b) => b.addedAt === createdBooking.addedAt && b.name === createdBooking.name && b.time === createdBooking.time && b.pc === createdBooking.pc);
-if (localMatch) localMatch.id = createdBooking.id;
+if (bookings.includes(localBooking)) {
+localBooking.id = createdBooking.id;
+}
 saveAll();
 })
 .catch(() => {
-bookings = bookings.filter((b) => !(b.name === createdBooking.name && b.time === createdBooking.time && b.pc === createdBooking.pc));
+bookings = bookings.filter((b) => b !== localBooking);
 saveAll();
 notify('Ошибка синхронизации с сервером. Бронь отменена.', 'Ошибка');
 });
