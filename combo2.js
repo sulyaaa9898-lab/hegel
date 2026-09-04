@@ -652,6 +652,20 @@ pc_statuses: booking.pcStatuses || {}
 };
 }
 
+function getSerializedStateSignature(value) {
+try {
+return JSON.stringify(value);
+} catch (_) {
+return '';
+}
+}
+
+function isElementCurrentlyVisible(elementId) {
+const element = document.getElementById(elementId);
+if (!element) return false;
+return element.style.display !== 'none';
+}
+
 async function syncStateFromBackend() {
 if (!getAuthToken()) return;
 const [activeRes, finishedRes, ratingsRes, adminRes, psConsolesRes, clubConfigRes] = await Promise.allSettled([
@@ -678,6 +692,12 @@ if (clubConfig && clubConfig.club && clubConfig.club.subscription) {
 clubContext.subscription = resolveSubscriptionState(clubConfig.club.subscription);
 }
 applyPsRuntimeConfig(clubConfig);
+
+const prevBookingsSignature = getSerializedStateSignature(bookings);
+const prevDoneSignature = getSerializedStateSignature(done);
+const prevGuestRatingsSignature = getSerializedStateSignature(guestRatings);
+const prevAdminsSignature = getSerializedStateSignature(admins);
+const prevPsConsolesSignature = getSerializedStateSignature(psConsoles);
 
 if (activeRes.status === 'fulfilled' && Array.isArray(active)) {
 bookings = active.map(fromApiBooking);
@@ -743,12 +763,30 @@ isFreeTime: session ? !!session.is_free_time : false
 });
 }
 
+const bookingsChanged = prevBookingsSignature !== getSerializedStateSignature(bookings);
+const doneChanged = prevDoneSignature !== getSerializedStateSignature(done);
+const guestRatingsChanged = prevGuestRatingsSignature !== getSerializedStateSignature(guestRatings);
+const adminsChanged = prevAdminsSignature !== getSerializedStateSignature(admins);
+const psConsolesChanged = prevPsConsolesSignature !== getSerializedStateSignature(psConsoles);
+
 storage.saveBookingsState(state);
 storage.saveAdmins(state);
+
+if (currentPlatform === 'pc' && (bookingsChanged || guestRatingsChanged) && isElementCurrentlyVisible('mainContent')) {
 renderTable();
+}
+if ((doneChanged || guestRatingsChanged) && isElementCurrentlyVisible('donePage')) {
 renderDone();
+}
+if ((bookingsChanged || doneChanged || guestRatingsChanged || adminsChanged) && isElementCurrentlyVisible('guestsPage')) {
 renderGuests();
+}
+if (currentPlatform === 'ps' && psConsolesChanged && isElementCurrentlyVisible('psConsolesPage')) {
+renderPSConsoles();
+}
+if (bookingsChanged || doneChanged || psConsolesChanged) {
 updateCounter();
+}
 if (typeof window.refreshDashboard === 'function') {
 window.refreshDashboard();
 }
@@ -827,9 +865,6 @@ document.getElementById('userTime').textContent = time;
 }
 }
 setInterval(updateUserTime, 1000);
-setInterval(() => {
-if (currentPlatform === 'pc') renderTable();
-}, 30000);
 
 async function runRealtimeSyncTick() {
 if (realtimeSyncInFlight) return;
