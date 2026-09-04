@@ -3707,31 +3707,6 @@ const weeklyPrepaymentsHtml = Array.isArray(insights.weeklyPrepayments) && insig
 card4.innerHTML = weeklyPrepaymentsHtml;
 }
 
-function toggleAccordionBox(headerElement) {
-const box = headerElement.closest('.owner-accordion-box');
-if (!box) return;
-
-const isExpanded = box.classList.contains('is-expanded');
-const icon = headerElement.querySelector('.owner-accordion-icon');
-const content = box.querySelector('.owner-accordion-content');
-
-if (isExpanded) {
-box.classList.remove('is-expanded');
-if (icon) icon.textContent = '▸';
-if (content) {
-content.style.maxHeight = '0';
-}
-} else {
-box.classList.add('is-expanded');
-if (icon) icon.textContent = '▾';
-if (content) {
-setTimeout(() => {
-content.style.maxHeight = content.scrollHeight + 'px';
-}, 0);
-}
-}
-}
-
 function togglePcTimeRangeInline(buttonElement, range, cardId) {
 const card = document.getElementById(cardId);
 if (!card) return;
@@ -3867,34 +3842,6 @@ function closeOwnerPrepayDayModal() {
 const modal = document.getElementById('ownerPrepayDayModal');
 if (!modal) return;
 modal.style.display = 'none';
-}
-
-function togglePcTimeRange(buttonElement, range) {
-const box = buttonElement.closest('.owner-accordion-box');
-if (!box) return;
-
-const monthContainer = box.querySelector('.owner-pcs-month');
-const allTimeContainer = box.querySelector('.owner-pcs-all-time');
-const contentEl = box.querySelector('.owner-accordion-content');
-const buttons = box.querySelectorAll('.owner-time-toggle');
-
-buttons.forEach((btn) => btn.classList.remove('active'));
-buttonElement.classList.add('active');
-
-if (range === 'month') {
-if (monthContainer) monthContainer.style.display = '';
-if (allTimeContainer) allTimeContainer.style.display = 'none';
-} else if (range === 'all-time') {
-if (monthContainer) monthContainer.style.display = 'none';
-if (allTimeContainer) allTimeContainer.style.display = '';
-}
-
-// Recalculate content height
-if (contentEl && box.classList.contains('is-expanded')) {
-setTimeout(() => {
-contentEl.style.maxHeight = contentEl.scrollHeight + 'px';
-}, 0);
-}
 }
 
 async function refreshOwnerStatsPageContent() {

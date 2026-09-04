@@ -708,16 +708,6 @@
 	}
 
 	async function init() {
-		console.log('🔧 Initializing owner panel...');
-		console.log('Protocol:', window.location.protocol);
-		console.log('Secure context:', window.isSecureContext);
-		console.log('Available elements:', {
-			appliedClubLink: !!els.appliedClubLink,
-			copyAppliedClubLinkBtn: !!els.copyAppliedClubLinkBtn,
-			appliedOwnerInviteLink: !!els.appliedOwnerInviteLink,
-			ownerResult: !!els.ownerResult
-		});
-		
 		if (!window.isSecureContext && window.location.protocol === 'http:') {
 			console.warn('⚠️ Page is using HTTP (not HTTPS). Clipboard API will use fallback method.');
 		}
