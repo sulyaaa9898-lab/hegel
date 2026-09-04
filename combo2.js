@@ -481,6 +481,37 @@ collapseSidebar();
 });
 }
 
+function isSidebarDrawerMode() {
+return window.matchMedia('(max-width: 900px)').matches;
+}
+
+function closeSidebarDrawer() {
+collapseSidebar();
+}
+
+function showAuthScreen() {
+const authModal = document.getElementById('authModal');
+const userPanel = document.getElementById('userPanel');
+if (userPanel) userPanel.style.display = 'none';
+closeSidebarDrawer();
+if (authModal) authModal.style.display = 'flex';
+
+const loginInput = document.getElementById('loginInput');
+const passwordInput = document.getElementById('passwordInput');
+const repeatPassword = document.getElementById('repeatPassword');
+const adminName = document.getElementById('adminName');
+const passwordMismatch = document.getElementById('passwordMismatch');
+
+if (loginInput) loginInput.value = '';
+if (passwordInput) passwordInput.value = '';
+if (repeatPassword) repeatPassword.value = '';
+if (adminName) adminName.value = '';
+if (passwordMismatch) passwordMismatch.style.display = 'none';
+
+clearAuthInlineError();
+setupAuthModeByContext();
+}
+
 function setAuthToken(token) {
 authToken = token || '';
 try {
@@ -541,14 +572,8 @@ clearAuthToken();
 currentAdmin = null;
 storage.saveCurrentAdmin(state);
 saveSessionAdmin(null);
-
-if (document.getElementById('userPanel')) {
-document.getElementById('userPanel').style.display = 'none';
-}
 updateManagementNavVisibility();
-if (document.getElementById('authModal')) {
-document.getElementById('authModal').style.display = 'flex';
-}
+showAuthScreen();
 notify('Ваша сессия завершена. Возможно, вошел другой администратор или истекло время активности.', 'Ошибка');
 }
 
@@ -3070,25 +3095,12 @@ clearAuthToken();
 currentAdmin = null;
 storage.saveCurrentAdmin(state);
 saveSessionAdmin(null);
-document.getElementById('userPanel').style.display = 'none';
-closeSidebarDrawer();
 updateManagementNavVisibility();
-document.getElementById('authModal').style.display = 'flex';
-document.getElementById('loginInput').value = '';
-document.getElementById('passwordInput').value = '';
-document.getElementById('repeatPassword').value = '';
-document.getElementById('adminName').value = '';
-clearAuthInlineError();
-document.getElementById('authTitle').textContent = 'Вход';
-document.getElementById('repeatPasswordField').style.display = 'none';
-document.getElementById('nameField').style.display = 'none';
-document.getElementById('authBtn').textContent = 'Войти';
-document.getElementById('switchMode').textContent = 'Нет аккаунта? Зарегистрироваться';
+showAuthScreen();
 document.getElementById('mainContent').style.display = 'block';
 document.getElementById('donePage').style.display = 'none';
 document.getElementById('guestsPage').style.display = 'none';
 renderSubscriptionState();
-setupAuthModeByContext();
 redirectToLoginScreen();
 }
 async function showAdmins() {
