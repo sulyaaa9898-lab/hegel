@@ -749,6 +749,9 @@ renderTable();
 renderDone();
 renderGuests();
 updateCounter();
+if (typeof window.refreshDashboard === 'function') {
+window.refreshDashboard();
+}
 renderSubscriptionState();
 enforceSubscriptionLock();
 }
