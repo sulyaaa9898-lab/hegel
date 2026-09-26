@@ -526,11 +526,34 @@ router.post('/:id/status', async (req, res, next) => {
 
     const beforeState = mapBooking(existing);
 
-    await dbRun(
+    const statusUpdate = await dbRun(
       db,
-      'UPDATE bookings_pc SET status = ?, updated_at = ? WHERE id = ? AND club_id = ?',
-      [status, nowIso(), id, req.club.id]
+      `UPDATE bookings_pc
+       SET status = ?, updated_at = ?
+       WHERE id = ? AND club_id = ? AND deleted_at IS NULL AND status = ?`,
+      [status, nowIso(), id, req.club.id, STATUS_PENDING]
     );
+
+    if (!statusUpdate.changes) {
+      const current = await dbGet(
+        db,
+        'SELECT * FROM bookings_pc WHERE id = ? AND club_id = ? AND deleted_at IS NULL LIMIT 1',
+        [id, req.club.id]
+      );
+
+      if (!current) {
+        return res.status(404).json({ error: 'Booking not found' });
+      }
+
+      if (current.status === status) {
+        return res.json(mapBooking(current));
+      }
+
+      return res.status(409).json({
+        error: 'Booking status has already been finalized',
+        code: 'BOOKING_ALREADY_FINALIZED'
+      });
+    }
 
     const updated = await dbGet(db, 'SELECT * FROM bookings_pc WHERE id = ? AND club_id = ?', [id, req.club.id]);
     await applyGuestRatingOnStatus(db, req.club.id, mapBooking(updated), status);

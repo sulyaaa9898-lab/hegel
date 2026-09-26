@@ -609,8 +609,7 @@ const data = parseApiPayload(text);
 
 if (!response.ok) {
 const error = createApiError(response, data);
-if (error.code === 'ADMIN_SESSION_TAKEN_OVER' || error.code === 'ADMIN_SESSION_EXPIRED' ||
-    error.code === 'SESSION_REVOKED' || error.code === 'ACCOUNT_DEACTIVATED') {
+if (token && response.status === 401 && getAuthToken() === token) {
 handleForcedAdminRelogin();
 }
 throw error;
@@ -676,6 +675,11 @@ apiRequest('/admins'),
 apiRequest('/ps/consoles'),
 apiRequest('/club/config')
 ]);
+
+if (activeRes.status === 'rejected') throw activeRes.reason;
+if (finishedRes.status === 'rejected') throw finishedRes.reason;
+if (!Array.isArray(activeRes.value)) throw new Error('INVALID_ACTIVE_BOOKINGS_RESPONSE');
+if (!Array.isArray(finishedRes.value)) throw new Error('INVALID_DONE_BOOKINGS_RESPONSE');
 
 const active = activeRes.status === 'fulfilled' ? activeRes.value : [];
 const finished = finishedRes.status === 'fulfilled' ? finishedRes.value : [];
@@ -792,6 +796,22 @@ window.refreshDashboard();
 }
 renderSubscriptionState();
 enforceSubscriptionLock();
+}
+
+async function restoreBookingSnapshotsAndSync(snapshotBookings, snapshotDone, snapshotRatings) {
+bookings = snapshotBookings;
+done = snapshotDone;
+guestRatings = snapshotRatings;
+saveAll();
+
+if (!getAuthToken()) return false;
+
+try {
+await syncStateFromBackend();
+return true;
+} catch (_) {
+return false;
+}
 }
 
 async function syncCreateBooking(booking, force = false) {
@@ -1794,11 +1814,10 @@ try {
 await syncUpdateBooking(booking);
 await syncBookingStatus(booking, 'arrived');
 } catch (_) {
-bookings = snapshotBookings;
-done = snapshotDone;
-guestRatings = snapshotRatings;
-saveAll();
-notify('Ошибка синхронизации с сервером. Изменение отменено.', 'Ошибка');
+const recovered = await restoreBookingSnapshotsAndSync(snapshotBookings, snapshotDone, snapshotRatings);
+notify(recovered
+? 'Не удалось подтвердить результат. Список сверен с сервером.'
+: 'Не удалось подтвердить результат или обновить список. Проверьте связь с сервером.', 'Ошибка');
 }
 return;
 }
@@ -1808,11 +1827,10 @@ closePCStatusModal();
 try {
 await syncUpdateBooking(booking);
 } catch (_) {
-bookings = snapshotBookings;
-done = snapshotDone;
-guestRatings = snapshotRatings;
-saveAll();
-notify('Ошибка синхронизации с сервером. Изменение отменено.', 'Ошибка');
+const recovered = await restoreBookingSnapshotsAndSync(snapshotBookings, snapshotDone, snapshotRatings);
+notify(recovered
+? 'Не удалось подтвердить результат. Список сверен с сервером.'
+: 'Не удалось подтвердить результат или обновить список. Проверьте связь с сервером.', 'Ошибка');
 }
 }
 function closeWarn() {
@@ -2597,11 +2615,10 @@ removeNotificationsByBookingId(b.id);
 try {
 await syncBookingStatus(b, 'arrived');
 } catch (_) {
-bookings = snapshotBookings;
-done = snapshotDone;
-guestRatings = snapshotRatings;
-saveAll();
-notify('Ошибка синхронизации с сервером. Изменение отменено.', 'Ошибка');
+const recovered = await restoreBookingSnapshotsAndSync(snapshotBookings, snapshotDone, snapshotRatings);
+notify(recovered
+? 'Не удалось подтвердить результат. Список сверен с сервером.'
+: 'Не удалось подтвердить результат или обновить список. Проверьте связь с сервером.', 'Ошибка');
 }
 }
 async function markLate() {
@@ -2631,11 +2648,10 @@ removeNotificationsByBookingId(b.id);
 try {
 await syncBookingStatus(b, 'late');
 } catch (_) {
-bookings = snapshotBookings;
-done = snapshotDone;
-guestRatings = snapshotRatings;
-saveAll();
-notify('Ошибка синхронизации с сервером. Изменение отменено.', 'Ошибка');
+const recovered = await restoreBookingSnapshotsAndSync(snapshotBookings, snapshotDone, snapshotRatings);
+notify(recovered
+? 'Не удалось подтвердить результат. Список сверен с сервером.'
+: 'Не удалось подтвердить результат или обновить список. Проверьте связь с сервером.', 'Ошибка');
 }
 }
 async function markCancelled() {
@@ -2665,11 +2681,10 @@ removeNotificationsByBookingId(b.id);
 try {
 await syncBookingStatus(b, 'cancelled');
 } catch (_) {
-bookings = snapshotBookings;
-done = snapshotDone;
-guestRatings = snapshotRatings;
-saveAll();
-notify('Ошибка синхронизации с сервером. Изменение отменено.', 'Ошибка');
+const recovered = await restoreBookingSnapshotsAndSync(snapshotBookings, snapshotDone, snapshotRatings);
+notify(recovered
+? 'Не удалось подтвердить результат. Список сверен с сервером.'
+: 'Не удалось подтвердить результат или обновить список. Проверьте связь с сервером.', 'Ошибка');
 }
 }
 async function markNoShow() {
@@ -2699,11 +2714,10 @@ removeNotificationsByBookingId(b.id);
 try {
 await syncBookingStatus(b, 'no-show');
 } catch (_) {
-bookings = snapshotBookings;
-done = snapshotDone;
-guestRatings = snapshotRatings;
-saveAll();
-notify('Ошибка синхронизации с сервером. Изменение отменено.', 'Ошибка');
+const recovered = await restoreBookingSnapshotsAndSync(snapshotBookings, snapshotDone, snapshotRatings);
+notify(recovered
+? 'Не удалось подтвердить результат. Список сверен с сервером.'
+: 'Не удалось подтвердить результат или обновить список. Проверьте связь с сервером.', 'Ошибка');
 }
 }
 function deleteBooking(i) {

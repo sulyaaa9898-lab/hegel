@@ -11,7 +11,7 @@ import { computeSubscriptionState } from '../utils/subscription.js';
 const router = express.Router();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-me';
-const JWT_EXPIRY = process.env.JWT_EXPIRY || '12h';
+const JWT_EXPIRY = process.env.JWT_EXPIRY || '30d';
 const SUPER_ADMIN_ROLE = 'SUPER_ADMIN';
 const CLUB_ADMIN_ROLE = 'CLUB_ADMIN';
 const CLUB_OWNER_ROLE = 'CLUB_OWNER';
@@ -42,7 +42,7 @@ function createToken(admin) {
 function getTokenExpiryIso(token) {
   const decoded = jwt.decode(token);
   if (!decoded || !decoded.exp) {
-    return new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
+    return new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
   }
   return new Date(Number(decoded.exp) * 1000).toISOString();
 }
